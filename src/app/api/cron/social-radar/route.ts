@@ -2,6 +2,8 @@ import { jsonError, jsonOk } from "@/lib/http";
 import { sendRadarDigestEmails } from "@/lib/radar-digest";
 import { refreshDueProjects } from "@/lib/radar-store";
 
+export const maxDuration = 800;
+
 export async function GET(req: Request) {
   const secret = process.env.SOCIAL_RADAR_CRON_SECRET?.trim();
   const provided = req.headers.get("x-cron-secret")?.trim() || new URL(req.url).searchParams.get("secret") || "";

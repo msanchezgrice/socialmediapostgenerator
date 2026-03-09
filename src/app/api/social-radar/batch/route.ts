@@ -2,6 +2,8 @@ import { getAuthUserSeed } from "@/lib/auth";
 import { jsonError, jsonOk } from "@/lib/http";
 import { ensureProfile, refreshDueProjects } from "@/lib/radar-store";
 
+export const maxDuration = 800;
+
 export async function POST() {
   const seed = await getAuthUserSeed();
   if (!seed) {
