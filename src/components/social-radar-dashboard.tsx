@@ -338,8 +338,8 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[320px,minmax(0,1fr)] xl:items-start">
-      <aside className="space-y-4 xl:sticky xl:top-4 xl:h-[calc(100vh-8.5rem)]">
+    <div className="grid gap-5 lg:grid-cols-[25%_minmax(0,1fr)] lg:items-start">
+      <aside className="space-y-4 lg:sticky lg:top-4 lg:h-[calc(100vh-8.5rem)]">
         <section className="rounded-[28px] border border-white/10 bg-black/30 p-4 backdrop-blur">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -418,7 +418,7 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
           <div className={`mt-4 min-h-5 text-xs ${statusError ? "text-rose-300" : "text-emerald-300"}`}>{status}</div>
         </section>
 
-        <section className="rounded-[28px] border border-white/10 bg-black/25 p-3 backdrop-blur xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
+        <section className="rounded-[28px] border border-white/10 bg-black/25 p-3 backdrop-blur lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
           <div className="flex items-center justify-between border-b border-white/5 px-2 pb-3">
             <div>
               <h3 className="text-base font-semibold text-white">Companies</h3>
@@ -426,7 +426,7 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
             </div>
             <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{summary.projects.length}</div>
           </div>
-          <div className="mt-3 space-y-2 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
+          <div className="mt-3 space-y-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
             {summary.projects.length ? (
               summary.projects.map((project) => (
                 <button
@@ -470,8 +470,8 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
         </section>
       </aside>
 
-      <div className="space-y-5 xl:min-h-[calc(100vh-8.5rem)]">
-        <section className="rounded-[32px] border border-white/10 bg-black/25 p-5 backdrop-blur xl:min-h-[calc(100vh-8.5rem)] xl:overflow-y-auto">
+      <div className="space-y-5 lg:min-h-[calc(100vh-8.5rem)]">
+        <section className="rounded-[32px] border border-white/10 bg-black/25 p-5 backdrop-blur lg:min-h-[calc(100vh-8.5rem)] lg:overflow-y-auto">
           <div className="space-y-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
