@@ -29,8 +29,8 @@ Copy `.env.example` to `.env.local` and fill in:
 - `OPENAI_API_KEY`
 - `OPENAI_WEB_SEARCH_MODEL` (optional, defaults to `gpt-4.1-mini`)
 - `X_BEARER_TOKEN` (optional, enables live X handle lookup)
-- `POSTMARK_API_KEY` (preferred for daily digests)
-- `RESEND_API_KEY`
+- `RESEND_API_KEY` (preferred for daily digests)
+- `POSTMARK_API_KEY` (optional fallback)
 - `RADAR_FROM_EMAIL`
 - `RADAR_APP_URL`
 - `SOCIAL_RADAR_CRON_SECRET`

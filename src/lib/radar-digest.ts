@@ -92,37 +92,35 @@ async function sendEmail(args: { to: string; subject: string; html: string; text
     process.env.RESEND_FROM_EMAIL?.trim() ||
     "noreply@nametobiz.com";
 
-  const postmarkApiKey = process.env.POSTMARK_API_KEY?.trim() || "";
-  if (postmarkApiKey) {
+  const resendApiKey = process.env.RESEND_API_KEY?.trim() || "";
+  if (resendApiKey) {
     try {
-      const response = await fetch("https://api.postmarkapp.com/email", {
+      const response = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "X-Postmark-Server-Token": postmarkApiKey,
+          authorization: `Bearer ${resendApiKey}`,
+          "content-type": "application/json",
         },
         body: JSON.stringify({
-          From: from,
-          To: args.to,
-          Subject: args.subject,
-          HtmlBody: args.html,
-          TextBody: args.text,
-          MessageStream: "outbound",
+          from,
+          to: [args.to],
+          subject: args.subject,
+          html: args.html,
+          text: args.text,
         }),
       });
 
-      if (response.ok) {
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
         return {
-          sent: true,
-          reason: null,
+          sent: false,
+          reason: `Resend request failed with ${response.status}${body ? `: ${body}` : ""}`,
         };
       }
 
-      const body = await response.text().catch(() => "");
       return {
-        sent: false,
-        reason: `Postmark request failed with ${response.status}${body ? `: ${body}` : ""}`,
+        sent: true,
+        reason: null,
       };
     } catch (error) {
       return {
@@ -132,41 +130,43 @@ async function sendEmail(args: { to: string; subject: string; html: string; text
     }
   }
 
-  const resendApiKey = process.env.RESEND_API_KEY?.trim() || "";
-  if (!resendApiKey) {
+  const postmarkApiKey = process.env.POSTMARK_API_KEY?.trim() || "";
+  if (!postmarkApiKey) {
     return {
       sent: false,
-      reason: "POSTMARK_API_KEY and RESEND_API_KEY missing",
+      reason: "RESEND_API_KEY and POSTMARK_API_KEY missing",
     };
   }
 
   try {
-    const response = await fetch("https://api.resend.com/emails", {
+    const response = await fetch("https://api.postmarkapp.com/email", {
       method: "POST",
       headers: {
-        authorization: `Bearer ${resendApiKey}`,
-        "content-type": "application/json",
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Postmark-Server-Token": postmarkApiKey,
       },
       body: JSON.stringify({
-        from,
-        to: [args.to],
-        subject: args.subject,
-        html: args.html,
-        text: args.text,
+        From: from,
+        To: args.to,
+        Subject: args.subject,
+        HtmlBody: args.html,
+        TextBody: args.text,
+        MessageStream: "outbound",
       }),
     });
 
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
+    if (response.ok) {
       return {
-        sent: false,
-        reason: `Resend request failed with ${response.status}${body ? `: ${body}` : ""}`,
+        sent: true,
+        reason: null,
       };
     }
 
+    const body = await response.text().catch(() => "");
     return {
-      sent: true,
-      reason: null,
+      sent: false,
+      reason: `Postmark request failed with ${response.status}${body ? `: ${body}` : ""}`,
     };
   } catch (error) {
     return {
