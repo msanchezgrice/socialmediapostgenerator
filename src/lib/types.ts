@@ -69,3 +69,12 @@ export type RebootSeedProject = {
   inventoryStatus?: string | null;
   notes?: string | null;
 };
+
+export type XHandleAvailability = "likely_available" | "taken" | "invalid" | "unchecked" | "unknown";
+
+export type XHandleSuggestion = {
+  handle: string;
+  availability: XHandleAvailability;
+  reason: string;
+  profileUrl: string | null;
+};

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getRebootSeedProjects, rebootInventoryAvailable } from "@/lib/reboot-seed";
 import { runRadarResearch, normalizeDomain, slugify, type RadarProposalDraft, type RadarResearchResult, type RadarSignalCandidate } from "@/lib/radar-research";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { suggestXHandles } from "@/lib/x-handles";
 import type { DashboardProject, RadarProject, RadarProposal, RadarSignal, RadarSummary } from "@/lib/types";
 
 type ProfileRow = {
@@ -327,6 +328,19 @@ async function getOwnedProject(profileId: string, projectId: string) {
 
   if (error) throw new Error(`PROJECT_FETCH_FAILED:${error.message}`);
   return (data as ProjectRow | null) ?? null;
+}
+
+export async function getProjectXHandleSuggestions(profileId: string, projectId: string) {
+  const project = await getOwnedProject(profileId, projectId);
+  if (!project) throw new Error("PROJECT_NOT_FOUND");
+
+  return suggestXHandles({
+    name: project.name,
+    domain: project.domain,
+    repoName: project.repo_name,
+    productType: project.product_type,
+    existingHandle: typeof project.platform_handles?.x === "string" ? project.platform_handles.x : null,
+  });
 }
 
 export async function updateProject(

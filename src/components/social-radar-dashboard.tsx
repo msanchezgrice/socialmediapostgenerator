@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import type { DashboardProject, RadarSummary } from "@/lib/types";
+import type { DashboardProject, RadarSummary, XHandleSuggestion } from "@/lib/types";
 
 type EditorState = {
   name: string;
@@ -18,6 +18,12 @@ type EditorState = {
   x: string;
   crosspost: string;
   website: string;
+};
+
+type XHandleSuggestionState = {
+  suggestions: XHandleSuggestion[];
+  checkedWithXApi: boolean;
+  note: string;
 };
 
 const emptyEditor: EditorState = {
@@ -111,6 +117,22 @@ function composerUrl(platform: "linkedin" | "x", text: string) {
     : `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
 }
 
+function xAvailabilityClasses(status: XHandleSuggestion["availability"]) {
+  if (status === "likely_available") return "border-emerald-500/25 bg-emerald-500/10 text-emerald-300";
+  if (status === "taken") return "border-rose-500/25 bg-rose-500/10 text-rose-300";
+  if (status === "unchecked") return "border-amber-500/25 bg-amber-500/10 text-amber-300";
+  if (status === "invalid") return "border-slate-500/25 bg-slate-500/10 text-slate-300";
+  return "border-white/10 bg-white/[0.03] text-slate-300";
+}
+
+function xAvailabilityLabel(status: XHandleSuggestion["availability"]) {
+  if (status === "likely_available") return "Likely available";
+  if (status === "taken") return "Taken";
+  if (status === "unchecked") return "Unchecked";
+  if (status === "invalid") return "Invalid";
+  return "Unknown";
+}
+
 async function requestJson<T>(url: string, init?: RequestInit) {
   const response = await fetch(url, {
     cache: "no-store",
@@ -135,6 +157,7 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
   const [summary, setSummary] = useState(initialSummary);
   const [selectedProjectId, setSelectedProjectId] = useState(initialSummary.projects[0]?.id ?? "");
   const [editor, setEditor] = useState<EditorState>(editorFromProject(initialSummary.projects[0] ?? null));
+  const [xHandleSuggestions, setXHandleSuggestions] = useState<Record<string, XHandleSuggestionState>>({});
   const [bulkInput, setBulkInput] = useState("");
   const [status, setStatus] = useState("Dashboard ready.");
   const [statusError, setStatusError] = useState(false);
@@ -142,6 +165,7 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
   const [, startTransition] = useTransition();
 
   const selectedProject = summary.projects.find((project) => project.id === selectedProjectId) ?? summary.projects[0] ?? null;
+  const selectedProjectHandleSuggestions = selectedProject ? xHandleSuggestions[selectedProject.id] ?? null : null;
 
   useEffect(() => {
     if (!summary.projects.length) {
@@ -252,6 +276,28 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
       },
       `Refreshed ${selectedProject.name}.`,
     );
+  }
+
+  async function suggestXHandlesForProject() {
+    if (!selectedProject) return;
+    const key = `x-suggest:${selectedProject.id}`;
+    setPendingAction(key);
+    setStatus("");
+
+    try {
+      const data = await requestJson<XHandleSuggestionState>(`/api/social-radar/projects/${selectedProject.id}/x-handle-suggestions`);
+      setXHandleSuggestions((current) => ({
+        ...current,
+        [selectedProject.id]: data,
+      }));
+      setStatus(data.checkedWithXApi ? "Loaded X handle suggestions." : "Loaded X handle suggestions without live X verification.");
+      setStatusError(false);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unable to load X handle suggestions.");
+      setStatusError(true);
+    } finally {
+      setPendingAction(null);
+    }
   }
 
   async function runCronNow() {
@@ -484,10 +530,58 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
                   <span className="text-xs uppercase tracking-[0.18em] text-slate-500">LinkedIn</span>
                   <input value={editor.linkedin} onChange={(e) => setEditor((s) => ({ ...s, linkedin: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
                 </label>
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.18em] text-slate-500">X handle</span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs uppercase tracking-[0.18em] text-slate-500">X handle</span>
+                    {selectedProject ? (
+                      <button
+                        type="button"
+                        onClick={() => void suggestXHandlesForProject()}
+                        disabled={Boolean(pendingAction)}
+                        className="rounded-full border border-white/15 px-3 py-1 text-[11px] text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
+                      >
+                        Suggest
+                      </button>
+                    ) : null}
+                  </div>
                   <input value={editor.x} onChange={(e) => setEditor((s) => ({ ...s, x: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
-                </label>
+                  {selectedProjectHandleSuggestions ? (
+                    <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-3">
+                      <div className="text-[11px] uppercase tracking-[0.16em] text-[#5eead4]">Suggested handles</div>
+                      <p className="mt-2 text-xs leading-6 text-slate-400">{selectedProjectHandleSuggestions.note}</p>
+                      <div className="mt-3 space-y-2">
+                        {selectedProjectHandleSuggestions.suggestions.map((suggestion) => (
+                          <div key={suggestion.handle} className="rounded-2xl border border-white/10 bg-[#07121b] p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-medium text-white">@{suggestion.handle}</span>
+                                  <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${xAvailabilityClasses(suggestion.availability)}`}>
+                                    {xAvailabilityLabel(suggestion.availability)}
+                                  </span>
+                                </div>
+                                <p className="mt-2 text-xs leading-6 text-slate-400">{suggestion.reason}</p>
+                              </div>
+                              {suggestion.availability !== "taken" && suggestion.availability !== "invalid" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditor((state) => ({ ...state, x: `@${suggestion.handle}` }))}
+                                  className="rounded-full border border-[#14b8a6]/25 bg-[#14b8a6]/10 px-3 py-1 text-[11px] text-[#5eead4] transition hover:bg-[#14b8a6]/20"
+                                >
+                                  Use
+                                </button>
+                              ) : suggestion.profileUrl ? (
+                                <a href={suggestion.profileUrl} target="_blank" rel="noreferrer" className="text-[11px] text-slate-300 hover:text-white">
+                                  Open
+                                </a>
+                              ) : null}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
                 <label className="space-y-2">
                   <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Cross-post target</span>
                   <input value={editor.crosspost} onChange={(e) => setEditor((s) => ({ ...s, crosspost: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />

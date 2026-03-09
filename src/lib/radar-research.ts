@@ -172,6 +172,26 @@ function trimText(value: string, maxLength: number) {
   return `${cleaned.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
+function normalizeUrl(value: unknown) {
+  const candidate = String(value || "").trim();
+  if (!candidate) return null;
+
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function normalizeIsoDate(value: unknown) {
+  const candidate = String(value || "").trim();
+  if (!candidate) return null;
+  const parsed = new Date(candidate);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
 function tokenize(values: Array<string | null | undefined>) {
   const counts = new Map<string, number>();
   for (const value of values) {
@@ -313,6 +333,131 @@ function buildNewsQueries(project: RadarProjectContext, keywords: string[]) {
   );
 
   return base.slice(0, 3);
+}
+
+async function fetchWebSearchSignals(project: RadarProjectContext, queries: string[], keywords: string[]) {
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) return null;
+
+  const prompt = [
+    `You are preparing a daily market scan for "${project.name}".`,
+    "Search the live web and return JSON only.",
+    'JSON shape: {"analysisSummary":"string","keywords":["string"],"queries":["string"],"signals":[{"title":"string","url":"string|null","summary":"string","publishedAt":"ISO-8601 string|null","relevanceScore":0}]}',
+    "Rules:",
+    "- Search for the most relevant recent developments tied to the company, its product category, buyers, and market.",
+    "- Prefer developments from the last 7 days. If coverage is sparse, include the best still-relevant signal from the last 30 days.",
+    "- Return 3 to 5 signals.",
+    "- Each summary should explain why the item matters for social posting or positioning.",
+    "- Keep relevanceScore between 1 and 99.",
+    `Company: ${project.name}`,
+    `Domain: ${project.domain || "unknown"}`,
+    `Product type: ${project.productType || "unknown"}`,
+    `Notes: ${project.notes || "none"}`,
+    `Existing summary: ${project.existingSummary || "none"}`,
+    `Known keywords: ${keywords.join(", ") || "none"}`,
+    `Query hints: ${queries.join(" | ") || project.name}`,
+  ].join("\n");
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: process.env.OPENAI_WEB_SEARCH_MODEL?.trim() || process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini",
+        input: prompt,
+        tools: [
+          {
+            type: "web_search",
+            user_location: {
+              type: "approximate",
+              country: "US",
+            },
+            search_context_size: "medium",
+          },
+        ],
+        temperature: 0.2,
+      }),
+    });
+
+    if (!response.ok) return null;
+
+    const payload = (await response.json()) as {
+      output_text?: string;
+      output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
+    };
+    const text = extractOpenAiText(payload);
+    if (!text) return null;
+
+    const parsed = parseJsonObject<{
+      analysisSummary?: string;
+      keywords?: string[];
+      queries?: string[];
+      signals?: Array<{
+        title?: string;
+        url?: string | null;
+        summary?: string;
+        publishedAt?: string | null;
+        relevanceScore?: number | string;
+      }>;
+    }>(text);
+
+    if (!parsed?.signals?.length) return null;
+
+    const nextQueries = unique([...(parsed.queries ?? []), ...queries].map((value) => String(value || "").trim()).filter(Boolean)).slice(0, 4);
+    const normalizedSignals = dedupeSignals(
+      parsed.signals.reduce<RadarSignalCandidate[]>((all, signal) => {
+        const title = trimText(String(signal.title || "").trim(), 180);
+        const summary = trimText(String(signal.summary || "").trim(), 280);
+        if (!title || !summary) return all;
+
+        const url = normalizeUrl(signal.url);
+        const relevance = Number(signal.relevanceScore ?? 0);
+        const sourceType: RadarSignalCandidate["sourceType"] = url ? "news" : "topic";
+
+        all.push({
+          sourceType,
+          title,
+          url,
+          summary,
+          publishedAt: normalizeIsoDate(signal.publishedAt),
+          relevanceScore:
+            Number.isFinite(relevance) && relevance > 0 ? Math.max(1, Math.min(99, relevance)) : rankSignal(`${title} ${summary}`, keywords),
+          metadata: {
+            source: "openai_web_search",
+            queries: nextQueries,
+          },
+        });
+
+        return all;
+      }, []),
+    )
+      .sort((left, right) => {
+        const rightTime = right.publishedAt ? new Date(right.publishedAt).getTime() : 0;
+        const leftTime = left.publishedAt ? new Date(left.publishedAt).getTime() : 0;
+        return right.relevanceScore - left.relevanceScore || rightTime - leftTime;
+      })
+      .slice(0, 6);
+
+    if (!normalizedSignals.length) return null;
+
+    const nextKeywords = unique([
+      ...keywords,
+      ...(parsed.keywords ?? []).map((value) => String(value || "").trim().toLowerCase()),
+      ...tokenize(normalizedSignals.flatMap((signal) => [signal.title, signal.summary])),
+    ]).slice(0, 12);
+
+    return {
+      analysisSummary: trimText(parsed.analysisSummary || heuristicSummary(project, normalizedSignals, nextKeywords), 420),
+      keywords: nextKeywords,
+      queries: nextQueries,
+      signals: normalizedSignals,
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function fetchNewsSignals(project: RadarProjectContext, queries: string[], keywords: string[]) {
@@ -553,24 +698,26 @@ export async function runRadarResearch(project: RadarProjectContext): Promise<Ra
   const baseKeywords = unique(tokenize([project.name, project.productType, project.notes, project.existingSummary]).slice(0, 8));
   const domainResult = await fetchDomainSignal(project, baseKeywords);
   const detectedKeywords = unique([...(project.existingKeywords ?? []), ...(domainResult?.keywords ?? []), ...baseKeywords]).slice(0, 12);
-  const queries = buildNewsQueries(project, detectedKeywords);
-  const newsSignals = await fetchNewsSignals(project, queries, detectedKeywords);
-  const signals = dedupeSignals([...(domainResult?.signal ? [domainResult.signal] : []), ...newsSignals]).slice(0, 8);
-  const analysisSummary = heuristicSummary(project, signals, detectedKeywords);
+  const queryHints = buildNewsQueries(project, detectedKeywords);
+  const webResearch = await fetchWebSearchSignals(project, queryHints, detectedKeywords);
+  const queries = webResearch?.queries?.length ? webResearch.queries : queryHints;
+  const topicalSignals = webResearch?.signals?.length ? webResearch.signals : await fetchNewsSignals(project, queries, detectedKeywords);
+  const nextKeywords = unique([...(webResearch?.keywords ?? []), ...detectedKeywords]).slice(0, 12);
+  const signals = dedupeSignals([...(domainResult?.signal ? [domainResult.signal] : []), ...topicalSignals]).slice(0, 8);
+  const analysisSummary = heuristicSummary(project, signals, nextKeywords);
 
   const llm = await maybeGenerateWithOpenAi({
     project,
     signals,
-    analysisSummary: domainResult?.analysisSummary || analysisSummary,
-    keywords: detectedKeywords,
+    analysisSummary: webResearch?.analysisSummary || domainResult?.analysisSummary || analysisSummary,
+    keywords: nextKeywords,
   });
 
   return {
-    analysisSummary: llm?.analysisSummary || domainResult?.analysisSummary || analysisSummary,
-    detectedKeywords: llm?.keywords || detectedKeywords,
+    analysisSummary: llm?.analysisSummary || webResearch?.analysisSummary || domainResult?.analysisSummary || analysisSummary,
+    detectedKeywords: llm?.keywords || nextKeywords,
     queries,
     signals,
     proposals: llm?.proposals || buildProposalDrafts(project, signals, analysisSummary),
   };
 }
-
