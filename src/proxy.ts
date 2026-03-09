@@ -14,7 +14,7 @@ export default clerkMiddleware(async (auth, req) => {
   if (isProtectedApiRoute(req) && !userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-});
+}, { signInUrl: "/sign-in", signUpUrl: "/sign-up" });
 
 export const config = {
   matcher: ["/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|png|jpg|jpeg|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)", "/(api|trpc)(.*)"],
