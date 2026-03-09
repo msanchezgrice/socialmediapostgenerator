@@ -159,9 +159,55 @@ async function lookupTakenHandles(handles: string[]) {
   }
 }
 
+async function lookupPublicHandles(handles: string[]) {
+  if (!handles.length) {
+    return {
+      checkedWithPublicLookup: false,
+      taken: new Set<string>(),
+      errorReason: "No handle candidates were generated.",
+    };
+  }
+
+  try {
+    const checks = await Promise.all(
+      handles.map(async (handle) => {
+        const url = `https://publish.twitter.com/oembed?url=${encodeURIComponent(`https://twitter.com/${handle}`)}`;
+        const response = await fetch(url, {
+          cache: "no-store",
+          headers: {
+            "user-agent": "Mozilla/5.0 (compatible; SocialRadarBot/1.0)",
+          },
+        });
+        return {
+          handle,
+          status: response.status,
+        };
+      }),
+    );
+
+    const taken = new Set(checks.filter((entry) => entry.status === 200).map((entry) => entry.handle.toLowerCase()));
+    return {
+      checkedWithPublicLookup: true,
+      taken,
+      errorReason: null,
+    };
+  } catch {
+    return {
+      checkedWithPublicLookup: false,
+      taken: new Set<string>(),
+      errorReason: "Public X profile lookup failed.",
+    };
+  }
+}
+
 export async function suggestXHandles(context: XHandleContext): Promise<{ suggestions: XHandleSuggestion[]; checkedWithXApi: boolean; note: string }> {
   const handles = candidatePool(context);
-  const { checkedWithXApi, taken, errorReason } = await lookupTakenHandles(handles);
+  const apiLookup = await lookupTakenHandles(handles);
+  const publicLookup = apiLookup.checkedWithXApi ? null : await lookupPublicHandles(handles);
+  const checkedWithXApi = apiLookup.checkedWithXApi;
+  const taken = checkedWithXApi ? apiLookup.taken : publicLookup?.taken ?? new Set<string>();
+  const fallbackLikelyAvailable = !checkedWithXApi && Boolean(publicLookup?.checkedWithPublicLookup);
+  const errorReason = apiLookup.errorReason || publicLookup?.errorReason || null;
 
   const suggestions = handles.slice(0, 10).map((handle): XHandleSuggestion => {
     const invalidReason = validateHandle(handle);
@@ -184,6 +230,15 @@ export async function suggestXHandles(context: XHandleContext): Promise<{ sugges
     }
 
     if (!checkedWithXApi) {
+      if (fallbackLikelyAvailable) {
+        return {
+          handle,
+          availability: "likely_available",
+          reason: "No public X profile resolved for this handle. This is a heuristic check and X can still reject reserved, suspended, or restricted usernames at claim time.",
+          profileUrl: null,
+        };
+      }
+
       return {
         handle,
         availability: "unchecked",
@@ -205,6 +260,8 @@ export async function suggestXHandles(context: XHandleContext): Promise<{ sugges
     checkedWithXApi,
     note: checkedWithXApi
       ? "Taken handles are confirmed via X user lookup. Likely-available handles still need a real X signup attempt because reserved or suspended usernames can fail."
-      : errorReason || "Suggestions are generated locally. Add X_BEARER_TOKEN to enable live X availability checks.",
+      : fallbackLikelyAvailable
+        ? "Official X API lookup is unavailable, so these suggestions were checked against X's public embed endpoint. Taken handles are reliable; likely-available handles still need a real claim attempt."
+        : errorReason || "Suggestions are generated locally. Add X_BEARER_TOKEN to enable live X availability checks.",
   };
 }
