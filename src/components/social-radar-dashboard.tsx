@@ -159,6 +159,8 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
   const [editor, setEditor] = useState<EditorState>(editorFromProject(initialSummary.projects[0] ?? null));
   const [xHandleSuggestions, setXHandleSuggestions] = useState<Record<string, XHandleSuggestionState>>({});
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showCompanyContext, setShowCompanyContext] = useState(false);
+  const [showSignals, setShowSignals] = useState(false);
   const [bulkInput, setBulkInput] = useState("");
   const [status, setStatus] = useState("Dashboard ready.");
   const [statusError, setStatusError] = useState(false);
@@ -339,8 +341,8 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
 
   return (
     <div className="grid gap-5 lg:grid-cols-[25%_minmax(0,1fr)] lg:items-start">
-      <aside className="space-y-4 lg:sticky lg:top-4 lg:h-[calc(100vh-8.5rem)]">
-        <section className="rounded-[28px] border border-white/10 bg-black/30 p-4 backdrop-blur">
+      <aside className="space-y-4 lg:sticky lg:top-4 lg:flex lg:h-[calc(100vh-8.5rem)] lg:flex-col lg:overflow-hidden">
+        <section className="rounded-[28px] border border-white/10 bg-black/30 p-4 backdrop-blur lg:shrink-0">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-[11px] uppercase tracking-[0.22em] text-[#5eead4]">Workspace</div>
@@ -426,7 +428,10 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
             </div>
             <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{summary.projects.length}</div>
           </div>
-          <div className="mt-3 space-y-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
+          <div
+            onWheelCapture={(event) => event.stopPropagation()}
+            className="mt-3 space-y-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:pr-1"
+          >
             {summary.projects.length ? (
               summary.projects.map((project) => (
                 <button
@@ -510,157 +515,191 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
               ) : null}
             </div>
 
-            {selectedProject ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Company name</span>
-                  <input value={editor.name} onChange={(e) => setEditor((s) => ({ ...s, name: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Domain</span>
-                  <input value={editor.domain} onChange={(e) => setEditor((s) => ({ ...s, domain: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Repo</span>
-                  <input value={editor.repoName} onChange={(e) => setEditor((s) => ({ ...s, repoName: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Product type</span>
-                  <input value={editor.productType} onChange={(e) => setEditor((s) => ({ ...s, productType: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Inventory status</span>
-                  <input value={editor.inventoryStatus} onChange={(e) => setEditor((s) => ({ ...s, inventoryStatus: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Contact email</span>
-                  <input value={editor.contactEmail} onChange={(e) => setEditor((s) => ({ ...s, contactEmail: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
-                </label>
-                <label className="space-y-2 md:col-span-2">
-                  <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Scan query</span>
-                  <input value={editor.scanQuery} onChange={(e) => setEditor((s) => ({ ...s, scanQuery: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
-                </label>
-                <label className="space-y-2 md:col-span-2">
-                  <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Notes</span>
-                  <textarea value={editor.notes} onChange={(e) => setEditor((s) => ({ ...s, notes: e.target.value }))} className="min-h-[120px] w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.18em] text-slate-500">LinkedIn</span>
-                  <input value={editor.linkedin} onChange={(e) => setEditor((s) => ({ ...s, linkedin: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
-                </label>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs uppercase tracking-[0.18em] text-slate-500">X handle</span>
-                    {selectedProject ? (
-                      <button
-                        type="button"
-                        onClick={() => void suggestXHandlesForProject()}
-                        disabled={Boolean(pendingAction)}
-                        className="rounded-full border border-white/15 px-3 py-1 text-[11px] text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
-                      >
-                        Suggest
-                      </button>
-                    ) : null}
-                  </div>
-                  <input value={editor.x} onChange={(e) => setEditor((s) => ({ ...s, x: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
-                  {selectedProjectHandleSuggestions ? (
-                    <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-3">
-                      <div className="text-[11px] uppercase tracking-[0.16em] text-[#5eead4]">Suggested handles</div>
-                      <p className="mt-2 text-xs leading-6 text-slate-400">{selectedProjectHandleSuggestions.note}</p>
-                      <div className="mt-3 space-y-2">
-                        {selectedProjectHandleSuggestions.suggestions.map((suggestion) => (
-                          <div key={suggestion.handle} className="rounded-2xl border border-white/10 bg-[#07121b] p-3">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-medium text-white">@{suggestion.handle}</span>
-                                  <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${xAvailabilityClasses(suggestion.availability)}`}>
-                                    {xAvailabilityLabel(suggestion.availability)}
-                                  </span>
-                                </div>
-                                <p className="mt-2 text-xs leading-6 text-slate-400">{suggestion.reason}</p>
-                              </div>
-                              {suggestion.availability !== "taken" && suggestion.availability !== "invalid" ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setEditor((state) => ({ ...state, x: `@${suggestion.handle}` }))}
-                                  className="rounded-full border border-[#14b8a6]/25 bg-[#14b8a6]/10 px-3 py-1 text-[11px] text-[#5eead4] transition hover:bg-[#14b8a6]/20"
-                                >
-                                  Use
-                                </button>
-                              ) : suggestion.profileUrl ? (
-                                <a href={suggestion.profileUrl} target="_blank" rel="noreferrer" className="text-[11px] text-slate-300 hover:text-white">
-                                  Open
-                                </a>
-                              ) : null}
-                            </div>
-                          </div>
-                        ))}
+            <section className="rounded-[28px] border border-white/10 bg-[#050b12]/70 p-4">
+              <button
+                type="button"
+                onClick={() => setShowCompanyContext((value) => !value)}
+                className="flex w-full items-center justify-between gap-4 text-left"
+              >
+                <div>
+                  <h3 className="text-2xl font-semibold text-white">Company context</h3>
+                  <p className="mt-1 text-sm text-slate-400">Metadata, handles, scanning rules, and current positioning.</p>
+                </div>
+                <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-slate-300">
+                  {showCompanyContext ? "Hide" : "Show"}
+                </span>
+              </button>
+
+              {showCompanyContext && selectedProject ? (
+                <div className="mt-5 space-y-5">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="space-y-2">
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Company name</span>
+                      <input value={editor.name} onChange={(e) => setEditor((s) => ({ ...s, name: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Domain</span>
+                      <input value={editor.domain} onChange={(e) => setEditor((s) => ({ ...s, domain: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Repo</span>
+                      <input value={editor.repoName} onChange={(e) => setEditor((s) => ({ ...s, repoName: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Product type</span>
+                      <input value={editor.productType} onChange={(e) => setEditor((s) => ({ ...s, productType: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Inventory status</span>
+                      <input value={editor.inventoryStatus} onChange={(e) => setEditor((s) => ({ ...s, inventoryStatus: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Contact email</span>
+                      <input value={editor.contactEmail} onChange={(e) => setEditor((s) => ({ ...s, contactEmail: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
+                    </label>
+                    <label className="space-y-2 md:col-span-2">
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Scan query</span>
+                      <input value={editor.scanQuery} onChange={(e) => setEditor((s) => ({ ...s, scanQuery: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
+                    </label>
+                    <label className="space-y-2 md:col-span-2">
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Notes</span>
+                      <textarea value={editor.notes} onChange={(e) => setEditor((s) => ({ ...s, notes: e.target.value }))} className="min-h-[120px] w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">LinkedIn</span>
+                      <input value={editor.linkedin} onChange={(e) => setEditor((s) => ({ ...s, linkedin: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
+                    </label>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs uppercase tracking-[0.18em] text-slate-500">X handle</span>
+                        <button
+                          type="button"
+                          onClick={() => void suggestXHandlesForProject()}
+                          disabled={Boolean(pendingAction)}
+                          className="rounded-full border border-white/15 px-3 py-1 text-[11px] text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
+                        >
+                          Suggest
+                        </button>
                       </div>
+                      <input value={editor.x} onChange={(e) => setEditor((s) => ({ ...s, x: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
+                      {selectedProjectHandleSuggestions ? (
+                        <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-3">
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-[#5eead4]">Suggested handles</div>
+                          <p className="mt-2 text-xs leading-6 text-slate-400">{selectedProjectHandleSuggestions.note}</p>
+                          <div className="mt-3 space-y-2">
+                            {selectedProjectHandleSuggestions.suggestions.map((suggestion) => {
+                              const handleUrl = suggestion.profileUrl || `https://x.com/${suggestion.handle}`;
+                              return (
+                                <div key={suggestion.handle} className="rounded-2xl border border-white/10 bg-[#07121b] p-3">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <a href={handleUrl} target="_blank" rel="noreferrer" className="font-medium text-white underline decoration-white/20 underline-offset-4 hover:text-[#5eead4]">
+                                          @{suggestion.handle}
+                                        </a>
+                                        <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${xAvailabilityClasses(suggestion.availability)}`}>
+                                          {xAvailabilityLabel(suggestion.availability)}
+                                        </span>
+                                      </div>
+                                      <p className="mt-2 text-xs leading-6 text-slate-400">{suggestion.reason}</p>
+                                    </div>
+                                    {suggestion.availability !== "taken" && suggestion.availability !== "invalid" ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditor((state) => ({ ...state, x: `@${suggestion.handle}` }))}
+                                        className="rounded-full border border-[#14b8a6]/25 bg-[#14b8a6]/10 px-3 py-1 text-[11px] text-[#5eead4] transition hover:bg-[#14b8a6]/20"
+                                      >
+                                        Use
+                                      </button>
+                                    ) : (
+                                      <a href={handleUrl} target="_blank" rel="noreferrer" className="text-[11px] text-slate-300 hover:text-white">
+                                        Open
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                    <label className="space-y-2">
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Cross-post target</span>
+                      <input value={editor.crosspost} onChange={(e) => setEditor((s) => ({ ...s, crosspost: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Website override</span>
+                      <input value={editor.website} onChange={(e) => setEditor((s) => ({ ...s, website: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
+                    </label>
+                    <label className="flex items-center justify-between rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
+                      <div>
+                        <div className="font-medium text-white">Active</div>
+                        <div className="text-xs text-slate-500">Include in the dashboard list and manual review.</div>
+                      </div>
+                      <input type="checkbox" checked={editor.active} onChange={(e) => setEditor((s) => ({ ...s, active: e.target.checked }))} className="h-5 w-5" />
+                    </label>
+                    <label className="flex items-center justify-between rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
+                      <div>
+                        <div className="font-medium text-white">Daily auto-scan</div>
+                        <div className="text-xs text-slate-500">Include in the scheduled Vercel cron batch.</div>
+                      </div>
+                      <input type="checkbox" checked={editor.autoScan} onChange={(e) => setEditor((s) => ({ ...s, autoScan: e.target.checked }))} className="h-5 w-5" />
+                    </label>
+                  </div>
+
+                  {selectedProject.analysisSummary ? (
+                    <div className="rounded-[24px] border border-[#14b8a6]/20 bg-[#07121b] p-4 text-sm leading-7 text-slate-300">
+                      <div className="mb-2 text-[11px] uppercase tracking-[0.18em] text-[#5eead4]">Latest analysis</div>
+                      {selectedProject.analysisSummary}
                     </div>
                   ) : null}
                 </div>
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Cross-post target</span>
-                  <input value={editor.crosspost} onChange={(e) => setEditor((s) => ({ ...s, crosspost: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Website override</span>
-                  <input value={editor.website} onChange={(e) => setEditor((s) => ({ ...s, website: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
-                </label>
-                <label className="flex items-center justify-between rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
-                  <div>
-                    <div className="font-medium text-white">Active</div>
-                    <div className="text-xs text-slate-500">Include in the dashboard list and manual review.</div>
-                  </div>
-                  <input type="checkbox" checked={editor.active} onChange={(e) => setEditor((s) => ({ ...s, active: e.target.checked }))} className="h-5 w-5" />
-                </label>
-                <label className="flex items-center justify-between rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
-                  <div>
-                    <div className="font-medium text-white">Daily auto-scan</div>
-                    <div className="text-xs text-slate-500">Include in the scheduled Vercel cron batch.</div>
-                  </div>
-                  <input type="checkbox" checked={editor.autoScan} onChange={(e) => setEditor((s) => ({ ...s, autoScan: e.target.checked }))} className="h-5 w-5" />
-                </label>
-              </div>
-            ) : null}
-
-            {selectedProject?.analysisSummary ? (
-              <div className="rounded-[24px] border border-[#14b8a6]/20 bg-[#07121b] p-4 text-sm leading-7 text-slate-300">
-                <div className="mb-2 text-[11px] uppercase tracking-[0.18em] text-[#5eead4]">Latest analysis</div>
-                {selectedProject.analysisSummary}
-              </div>
-            ) : null}
+              ) : null}
+            </section>
 
             <section className="rounded-[28px] border border-white/10 bg-[#050b12]/70 p-4">
-              <h3 className="text-2xl font-semibold text-white">Signals</h3>
-              <p className="mt-1 text-sm text-slate-400">Homepage and live-web inputs shaping the current narrative.</p>
-              <div className="mt-5 space-y-3">
-              {selectedProject?.latestSignals.length ? (
-                selectedProject.latestSignals.map((signal) => (
-                  <article key={signal.id} className="rounded-[24px] border border-white/10 bg-[#07121b] p-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full border border-[#14b8a6]/20 bg-[#14b8a6]/10 px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-[#5eead4]">
-                        {signal.sourceType}
-                      </span>
-                      <span className="text-[11px] text-slate-500">{formatDate(signal.publishedAt || signal.createdAt)}</span>
-                      <span className="text-[11px] text-slate-500">Relevance {Math.round(signal.relevanceScore)}</span>
+              <button
+                type="button"
+                onClick={() => setShowSignals((value) => !value)}
+                className="flex w-full items-center justify-between gap-4 text-left"
+              >
+                <div>
+                  <h3 className="text-2xl font-semibold text-white">Signals</h3>
+                  <p className="mt-1 text-sm text-slate-400">Homepage and live-web inputs shaping the current narrative.</p>
+                </div>
+                <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-slate-300">
+                  {showSignals ? "Hide" : "Show"}
+                </span>
+              </button>
+              {showSignals ? (
+                <div className="mt-5 space-y-3">
+                  {selectedProject?.latestSignals.length ? (
+                    selectedProject.latestSignals.map((signal) => (
+                      <article key={signal.id} className="rounded-[24px] border border-white/10 bg-[#07121b] p-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full border border-[#14b8a6]/20 bg-[#14b8a6]/10 px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-[#5eead4]">
+                            {signal.sourceType}
+                          </span>
+                          <span className="text-[11px] text-slate-500">{formatDate(signal.publishedAt || signal.createdAt)}</span>
+                          <span className="text-[11px] text-slate-500">Relevance {Math.round(signal.relevanceScore)}</span>
+                        </div>
+                        <h4 className="mt-3 text-sm font-semibold text-white">{signal.title}</h4>
+                        <p className="mt-2 text-sm leading-7 text-slate-300">{signal.summary}</p>
+                        {signal.url ? (
+                          <a href={signal.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-xs text-[#5eead4] hover:text-white">
+                            Open source
+                          </a>
+                        ) : null}
+                      </article>
+                    ))
+                  ) : (
+                    <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-slate-400">
+                      Run a refresh to populate this company’s signals.
                     </div>
-                    <h4 className="mt-3 text-sm font-semibold text-white">{signal.title}</h4>
-                    <p className="mt-2 text-sm leading-7 text-slate-300">{signal.summary}</p>
-                    {signal.url ? (
-                      <a href={signal.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-xs text-[#5eead4] hover:text-white">
-                        Open source
-                      </a>
-                    ) : null}
-                  </article>
-                ))
-              ) : (
-                  <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-slate-400">
-                    Run a refresh to populate this company’s signals.
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              ) : null}
             </section>
 
             <section className="rounded-[28px] border border-white/10 bg-[#050b12]/70 p-4">
