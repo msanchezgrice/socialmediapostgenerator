@@ -20,6 +20,12 @@ type EditorState = {
   website: string;
 };
 
+type QuickEntryState = {
+  name: string;
+  domain: string;
+  contactEmail: string;
+};
+
 type XHandleSuggestionState = {
   suggestions: XHandleSuggestion[];
   checkedWithXApi: boolean;
@@ -41,6 +47,12 @@ const emptyEditor: EditorState = {
   x: "",
   crosspost: "",
   website: "",
+};
+
+const emptyQuickEntry: QuickEntryState = {
+  name: "",
+  domain: "",
+  contactEmail: "",
 };
 
 function editorFromProject(project: DashboardProject | null): EditorState {
@@ -161,6 +173,8 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showCompanyContext, setShowCompanyContext] = useState(false);
   const [showSignals, setShowSignals] = useState(false);
+  const [showPosts, setShowPosts] = useState(true);
+  const [quickEntry, setQuickEntry] = useState<QuickEntryState>(emptyQuickEntry);
   const [bulkInput, setBulkInput] = useState("");
   const [status, setStatus] = useState("Dashboard ready.");
   const [statusError, setStatusError] = useState(false);
@@ -237,32 +251,71 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
     );
   }
 
+  function projectPayloadFromEditor() {
+    return {
+      name: editor.name,
+      domain: editor.domain || null,
+      repoName: editor.repoName || null,
+      productType: editor.productType || null,
+      inventoryStatus: editor.inventoryStatus || null,
+      contactEmail: editor.contactEmail || null,
+      notes: editor.notes || null,
+      scanQuery: editor.scanQuery || null,
+      active: editor.active,
+      autoScan: editor.autoScan,
+      platformHandles: {
+        linkedin: editor.linkedin,
+        x: editor.x,
+        crosspost: editor.crosspost,
+        website: editor.website,
+      },
+    };
+  }
+
+  async function persistSelectedProject() {
+    if (!selectedProject) return;
+    await requestJson(`/api/social-radar/projects/${selectedProject.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(projectPayloadFromEditor()),
+    });
+  }
+
+  async function addSingleProject() {
+    const normalizedDomain = quickEntry.domain.trim();
+    if (!normalizedDomain) {
+      setStatus("Add a domain or URL for the company you want to track.");
+      setStatusError(true);
+      return;
+    }
+
+    const nextName = quickEntry.name.trim() || titleizeDomain(normalizedDomain);
+    await runAction(
+      "create-single",
+      async () => {
+        await requestJson("/api/social-radar/projects", {
+          method: "POST",
+          body: JSON.stringify({
+            entries: [
+              {
+                name: nextName,
+                domain: normalizedDomain,
+                contactEmail: quickEntry.contactEmail.trim() || null,
+              },
+            ],
+          }),
+        });
+        setQuickEntry(emptyQuickEntry);
+      },
+      `Added ${nextName}.`,
+    );
+  }
+
   async function saveProject() {
     if (!selectedProject) return;
     await runAction(
       `save:${selectedProject.id}`,
       async () => {
-        await requestJson(`/api/social-radar/projects/${selectedProject.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({
-            name: editor.name,
-            domain: editor.domain || null,
-            repoName: editor.repoName || null,
-            productType: editor.productType || null,
-            inventoryStatus: editor.inventoryStatus || null,
-            contactEmail: editor.contactEmail || null,
-            notes: editor.notes || null,
-            scanQuery: editor.scanQuery || null,
-            active: editor.active,
-            autoScan: editor.autoScan,
-            platformHandles: {
-              linkedin: editor.linkedin,
-              x: editor.x,
-              crosspost: editor.crosspost,
-              website: editor.website,
-            },
-          }),
-        });
+        await persistSelectedProject();
       },
       "Saved project settings.",
     );
@@ -273,11 +326,12 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
     await runAction(
       `refresh:${selectedProject.id}`,
       async () => {
+        await persistSelectedProject();
         await requestJson(`/api/social-radar/projects/${selectedProject.id}/refresh`, {
           method: "POST",
         });
       },
-      `Refreshed ${selectedProject.name}.`,
+      `Saved settings and refreshed ${selectedProject.name}.`,
     );
   }
 
@@ -342,84 +396,6 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
   return (
     <div className="grid gap-5 lg:grid-cols-[25%_minmax(0,1fr)] lg:items-start">
       <aside className="space-y-4 lg:sticky lg:top-4 lg:flex lg:h-[calc(100vh-8.5rem)] lg:flex-col lg:overflow-hidden">
-        <section className="rounded-[28px] border border-white/10 bg-black/30 p-4 backdrop-blur lg:shrink-0">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.22em] text-[#5eead4]">Workspace</div>
-              <h2 className="mt-2 text-xl font-semibold text-white">Portfolio console</h2>
-              <p className="mt-1 text-xs leading-6 text-slate-400">Compact intake on the left. Full company workspace on the right.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowQuickAdd((value) => !value)}
-              className="rounded-full border border-white/15 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-slate-200 transition hover:bg-white/10"
-            >
-              {showQuickAdd ? "Hide add" : "Add"}
-            </button>
-          </div>
-
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Tracked</div>
-              <div className="mt-1 text-lg font-semibold text-white">{summary.importedProjectCount}</div>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Active</div>
-              <div className="mt-1 text-lg font-semibold text-white">{summary.activeProjectCount}</div>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Last scan</div>
-              <div className="mt-1 text-xs font-medium leading-5 text-white">{formatDate(summary.lastScannedAt)}</div>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void runCronNow()}
-              disabled={Boolean(pendingAction)}
-              className="rounded-full border border-white/15 px-3 py-2 text-xs text-white transition hover:bg-white/10 disabled:opacity-60"
-            >
-              Run Batch
-            </button>
-            <button
-              type="button"
-              onClick={() => void importReboot()}
-              disabled={Boolean(pendingAction)}
-              className="rounded-full border border-[#14b8a6]/25 bg-[#14b8a6]/10 px-3 py-2 text-xs text-[#5eead4] transition hover:bg-[#14b8a6]/20 disabled:opacity-60"
-            >
-              Import Reboot
-            </button>
-          </div>
-
-          {showQuickAdd ? (
-            <div className="mt-4 rounded-[22px] border border-white/10 bg-[#07121b] p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-[#5eead4]">Quick intake</div>
-                  <p className="mt-1 text-xs leading-6 text-slate-400">One line per project. `Name | domain.com | notes | email`.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void addProjects()}
-                  disabled={Boolean(pendingAction)}
-                  className="rounded-full bg-[#14b8a6] px-3 py-1.5 text-xs font-medium text-slate-950 transition hover:bg-[#2dd4bf] disabled:opacity-60"
-                >
-                  Add
-                </button>
-              </div>
-              <textarea
-                value={bulkInput}
-                onChange={(event) => setBulkInput(event.target.value)}
-                placeholder={"LidVault | lidvault.com | HIPAA ophthalmology | ops@lidvault.com\nsurgeryviz.com"}
-                className="mt-3 min-h-[132px] w-full rounded-[18px] border border-white/10 bg-black/20 px-3 py-3 text-sm text-white outline-none placeholder:text-slate-500"
-              />
-            </div>
-          ) : null}
-
-          <div className={`mt-4 min-h-5 text-xs ${statusError ? "text-rose-300" : "text-emerald-300"}`}>{status}</div>
-        </section>
-
         <section className="rounded-[28px] border border-white/10 bg-black/25 p-3 backdrop-blur lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
           <div className="flex items-center justify-between border-b border-white/5 px-2 pb-3">
             <div>
@@ -473,6 +449,117 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
             )}
           </div>
         </section>
+
+        <section className="rounded-[28px] border border-white/10 bg-black/30 p-4 backdrop-blur lg:shrink-0">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.22em] text-[#5eead4]">Loader</div>
+              <h2 className="mt-2 text-xl font-semibold text-white">Portfolio intake</h2>
+              <p className="mt-1 text-xs leading-6 text-slate-400">Add one company fast or expand the bulk importer below.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowQuickAdd((value) => !value)}
+              className="rounded-full border border-white/15 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-slate-200 transition hover:bg-white/10"
+            >
+              {showQuickAdd ? "Hide bulk" : "Bulk"}
+            </button>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Tracked</div>
+              <div className="mt-1 text-lg font-semibold text-white">{summary.importedProjectCount}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Active</div>
+              <div className="mt-1 text-lg font-semibold text-white">{summary.activeProjectCount}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Last scan</div>
+              <div className="mt-1 text-xs font-medium leading-5 text-white">{formatDate(summary.lastScannedAt)}</div>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[22px] border border-white/10 bg-[#07121b] p-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-[#5eead4]">Single company</div>
+            <p className="mt-1 text-xs leading-6 text-slate-400">Add one more domain or URL without opening the bulk loader.</p>
+            <div className="mt-3 space-y-2">
+              <input
+                value={quickEntry.domain}
+                onChange={(event) => setQuickEntry((current) => ({ ...current, domain: event.target.value }))}
+                placeholder="company.com or https://company.com"
+                className="w-full rounded-[16px] border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500"
+              />
+              <input
+                value={quickEntry.name}
+                onChange={(event) => setQuickEntry((current) => ({ ...current, name: event.target.value }))}
+                placeholder="Optional company name"
+                className="w-full rounded-[16px] border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500"
+              />
+              <input
+                value={quickEntry.contactEmail}
+                onChange={(event) => setQuickEntry((current) => ({ ...current, contactEmail: event.target.value }))}
+                placeholder="Optional contact email"
+                className="w-full rounded-[16px] border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => void addSingleProject()}
+              disabled={Boolean(pendingAction)}
+              className="mt-3 rounded-full bg-[#14b8a6] px-3 py-2 text-xs font-medium text-slate-950 transition hover:bg-[#2dd4bf] disabled:opacity-60"
+            >
+              Add company
+            </button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void runCronNow()}
+              disabled={Boolean(pendingAction)}
+              className="rounded-full border border-white/15 px-3 py-2 text-xs text-white transition hover:bg-white/10 disabled:opacity-60"
+            >
+              Run Batch
+            </button>
+            <button
+              type="button"
+              onClick={() => void importReboot()}
+              disabled={Boolean(pendingAction)}
+              className="rounded-full border border-[#14b8a6]/25 bg-[#14b8a6]/10 px-3 py-2 text-xs text-[#5eead4] transition hover:bg-[#14b8a6]/20 disabled:opacity-60"
+            >
+              Import Reboot
+            </button>
+          </div>
+
+          {showQuickAdd ? (
+            <div className="mt-4 rounded-[22px] border border-white/10 bg-[#07121b] p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-[#5eead4]">Bulk intake</div>
+                  <p className="mt-1 text-xs leading-6 text-slate-400">One line per project. `Name | domain.com | notes | email`.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void addProjects()}
+                  disabled={Boolean(pendingAction)}
+                  className="rounded-full bg-[#14b8a6] px-3 py-1.5 text-xs font-medium text-slate-950 transition hover:bg-[#2dd4bf] disabled:opacity-60"
+                >
+                  Add
+                </button>
+              </div>
+              <textarea
+                value={bulkInput}
+                onChange={(event) => setBulkInput(event.target.value)}
+                placeholder={"LidVault | lidvault.com | HIPAA ophthalmology | ops@lidvault.com\nsurgeryviz.com"}
+                className="mt-3 min-h-[132px] w-full rounded-[18px] border border-white/10 bg-black/20 px-3 py-3 text-sm text-white outline-none placeholder:text-slate-500"
+              />
+            </div>
+          ) : null}
+
+          <div className={`mt-4 min-h-5 text-xs ${statusError ? "text-rose-300" : "text-emerald-300"}`}>{status}</div>
+        </section>
       </aside>
 
       <div className="space-y-5 lg:min-h-[calc(100vh-8.5rem)]">
@@ -485,6 +572,7 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
                 <p className="mt-1 max-w-3xl text-sm text-slate-400">
                   {selectedProject ? "Store company metadata, email, handles, and scanning settings." : "Choose a project to edit settings and review signals."}
                 </p>
+                {selectedProject ? <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">Refresh saves current settings first, then runs research and draft generation.</p> : null}
                 {selectedProject ? (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {selectedProject.domain ? <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-slate-300">{selectedProject.domain}</span> : null}
@@ -546,7 +634,7 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
                       <input value={editor.repoName} onChange={(e) => setEditor((s) => ({ ...s, repoName: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
                     </label>
                     <label className="space-y-2">
-                      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Product type</span>
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Topic / market</span>
                       <input value={editor.productType} onChange={(e) => setEditor((s) => ({ ...s, productType: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
                     </label>
                     <label className="space-y-2">
@@ -558,11 +646,11 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
                       <input value={editor.contactEmail} onChange={(e) => setEditor((s) => ({ ...s, contactEmail: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
                     </label>
                     <label className="space-y-2 md:col-span-2">
-                      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Scan query</span>
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Search query</span>
                       <input value={editor.scanQuery} onChange={(e) => setEditor((s) => ({ ...s, scanQuery: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
                     </label>
                     <label className="space-y-2 md:col-span-2">
-                      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Notes</span>
+                      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Criteria + guidance</span>
                       <textarea value={editor.notes} onChange={(e) => setEditor((s) => ({ ...s, notes: e.target.value }))} className="min-h-[120px] w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
                     </label>
                     <label className="space-y-2">
@@ -703,58 +791,71 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
             </section>
 
             <section className="rounded-[28px] border border-white/10 bg-[#050b12]/70 p-4">
-              <h3 className="text-2xl font-semibold text-white">Packaged posts</h3>
-              <p className="mt-1 text-sm text-slate-400">Three options, each ready for native LinkedIn or X posting.</p>
-              <div className="mt-5 grid gap-4 xl:grid-cols-3">
-              {selectedProject?.latestProposals.length ? (
-                selectedProject.latestProposals.map((proposal) => (
-                  <article key={proposal.id} className="rounded-[24px] border border-white/10 bg-[#07121b] p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-[#5eead4]">Option {proposal.variantIndex}</div>
-                      <div className="text-[11px] text-slate-500">{proposal.status}</div>
-                    </div>
-                    <h4 className="mt-3 text-base font-semibold text-white">{proposal.headline}</h4>
-                    <p className="mt-2 text-sm leading-7 text-slate-400">{proposal.rationale}</p>
+              <button
+                type="button"
+                onClick={() => setShowPosts((value) => !value)}
+                className="flex w-full items-center justify-between gap-4 text-left"
+              >
+                <div>
+                  <h3 className="text-2xl font-semibold text-white">Packaged posts</h3>
+                  <p className="mt-1 text-sm text-slate-400">Three options, each ready for native LinkedIn or X posting.</p>
+                </div>
+                <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-slate-300">
+                  {showPosts ? "Hide" : "Show"}
+                </span>
+              </button>
+              {showPosts ? (
+                <div className="mt-5 grid gap-4 xl:grid-cols-3">
+                  {selectedProject?.latestProposals.length ? (
+                    selectedProject.latestProposals.map((proposal) => (
+                      <article key={proposal.id} className="rounded-[24px] border border-white/10 bg-[#07121b] p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#5eead4]">Option {proposal.variantIndex}</div>
+                          <div className="text-[11px] text-slate-500">{proposal.status}</div>
+                        </div>
+                        <h4 className="mt-3 text-base font-semibold text-white">{proposal.headline}</h4>
+                        <p className="mt-2 text-sm leading-7 text-slate-400">{proposal.rationale}</p>
 
-                    <div className="mt-4 space-y-3">
-                      <div className="rounded-[18px] border border-[#0a66c2]/20 bg-[#0a66c2]/10 p-3">
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-[11px] uppercase tracking-[0.16em] text-[#7cc3ff]">LinkedIn</span>
-                          <div className="flex gap-2 text-[11px]">
-                            <button type="button" onClick={() => void copyText(proposal.content.linkedin)} className="text-slate-300 hover:text-white">Copy</button>
-                            <button type="button" onClick={() => openComposer("linkedin", proposal.content.linkedin)} className="text-[#7cc3ff] hover:text-white">Open</button>
+                        <div className="mt-4 space-y-3">
+                          <div className="rounded-[18px] border border-[#0a66c2]/20 bg-[#0a66c2]/10 p-3">
+                            <div className="mb-2 flex items-center justify-between">
+                              <span className="text-[11px] uppercase tracking-[0.16em] text-[#7cc3ff]">LinkedIn</span>
+                              <div className="flex gap-2 text-[11px]">
+                                <button type="button" onClick={() => void copyText(proposal.content.linkedin)} className="text-slate-300 hover:text-white">Copy</button>
+                                <button type="button" onClick={() => openComposer("linkedin", proposal.content.linkedin)} className="text-[#7cc3ff] hover:text-white">Open</button>
+                              </div>
+                            </div>
+                            <p className="whitespace-pre-wrap text-sm leading-7 text-slate-100">{proposal.content.linkedin}</p>
+                          </div>
+
+                          <div className="rounded-[18px] border border-white/10 bg-black/25 p-3">
+                            <div className="mb-2 flex items-center justify-between">
+                              <span className="text-[11px] uppercase tracking-[0.16em] text-white">X</span>
+                              <div className="flex gap-2 text-[11px]">
+                                <button type="button" onClick={() => void copyText(proposal.content.x)} className="text-slate-300 hover:text-white">Copy</button>
+                                <button type="button" onClick={() => openComposer("x", proposal.content.x)} className="text-[#5eead4] hover:text-white">Open</button>
+                              </div>
+                            </div>
+                            <p className="whitespace-pre-wrap text-sm leading-7 text-slate-100">{proposal.content.x}</p>
+                          </div>
+
+                          <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-3">
+                            <div className="mb-2 flex items-center justify-between">
+                              <span className="text-[11px] uppercase tracking-[0.16em] text-slate-300">Cross-post</span>
+                              <button type="button" onClick={() => void copyText(proposal.content.crosspost)} className="text-[11px] text-slate-300 hover:text-white">Copy</button>
+                            </div>
+                            <p className="whitespace-pre-wrap text-sm leading-7 text-slate-100">{proposal.content.crosspost}</p>
                           </div>
                         </div>
-                        <p className="whitespace-pre-wrap text-sm leading-7 text-slate-100">{proposal.content.linkedin}</p>
-                      </div>
-
-                      <div className="rounded-[18px] border border-white/10 bg-black/25 p-3">
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-[11px] uppercase tracking-[0.16em] text-white">X</span>
-                          <div className="flex gap-2 text-[11px]">
-                            <button type="button" onClick={() => void copyText(proposal.content.x)} className="text-slate-300 hover:text-white">Copy</button>
-                            <button type="button" onClick={() => openComposer("x", proposal.content.x)} className="text-[#5eead4] hover:text-white">Open</button>
-                          </div>
-                        </div>
-                        <p className="whitespace-pre-wrap text-sm leading-7 text-slate-100">{proposal.content.x}</p>
-                      </div>
-
-                      <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-3">
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-[11px] uppercase tracking-[0.16em] text-slate-300">Cross-post</span>
-                          <button type="button" onClick={() => void copyText(proposal.content.crosspost)} className="text-[11px] text-slate-300 hover:text-white">Copy</button>
-                        </div>
-                        <p className="whitespace-pre-wrap text-sm leading-7 text-slate-100">{proposal.content.crosspost}</p>
-                      </div>
+                      </article>
+                    ))
+                  ) : (
+                    <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-slate-400 xl:col-span-3">
+                      Refresh a project to generate the first proposal set.
                     </div>
-                  </article>
-                ))
-              ) : (
-                  <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-slate-400 xl:col-span-3">
-                    Refresh a project to generate the first proposal set.
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              ) : null}
             </section>
           </div>
         </section>

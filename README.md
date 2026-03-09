@@ -7,6 +7,7 @@ Standalone social signal scanning and post proposal app.
 - Clerk auth
 - Supabase database
 - OpenAI Responses API for web search and proposal generation
+- Postmark or Resend for daily digest emails
 - Vercel cron for daily refresh
 
 ## Core flow
@@ -15,7 +16,8 @@ Standalone social signal scanning and post proposal app.
 3. Scan each active domain and search the live web for recent relevant signals
 4. Generate three ready-to-post options per company
 5. Suggest X handles and optionally verify them against the X API
-6. Open native LinkedIn and X composers from the dashboard
+6. Send a daily email digest with highlights and a dashboard link
+7. Open native LinkedIn and X composers from the dashboard
 
 ## Environment
 Copy `.env.example` to `.env.local` and fill in:
@@ -27,6 +29,10 @@ Copy `.env.example` to `.env.local` and fill in:
 - `OPENAI_API_KEY`
 - `OPENAI_WEB_SEARCH_MODEL` (optional, defaults to `gpt-4.1-mini`)
 - `X_BEARER_TOKEN` (optional, enables live X handle lookup)
+- `POSTMARK_API_KEY` (preferred for daily digests)
+- `RESEND_API_KEY`
+- `RADAR_FROM_EMAIL`
+- `RADAR_APP_URL`
 - `SOCIAL_RADAR_CRON_SECRET`
 
 ## Commands

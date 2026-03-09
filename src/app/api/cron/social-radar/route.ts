@@ -1,4 +1,5 @@
 import { jsonError, jsonOk } from "@/lib/http";
+import { sendRadarDigestEmails } from "@/lib/radar-digest";
 import { refreshDueProjects } from "@/lib/radar-store";
 
 export async function GET(req: Request) {
@@ -10,8 +11,9 @@ export async function GET(req: Request) {
   }
 
   try {
-    const result = await refreshDueProjects({ limit: 3 });
-    return jsonOk(result);
+    const result = await refreshDueProjects({ limit: 250 });
+    const digest = await sendRadarDigestEmails(result.refreshedProjects);
+    return jsonOk({ ...result, digest });
   } catch (error) {
     return jsonError("CRON_FAILED", "Unable to run Social Radar cron", 500, {
       reason: error instanceof Error ? error.message : "UNKNOWN",

@@ -75,6 +75,18 @@ type CreateProjectInput = {
   autoScan?: boolean;
 };
 
+export type RefreshedRadarProject = {
+  projectId: string;
+  profileId: string;
+  name: string;
+  domain: string | null;
+  analysisSummary: string;
+  topSignalTitle: string | null;
+  topSignalUrl: string | null;
+  leadProposalHeadline: string | null;
+  leadProposalX: string | null;
+};
+
 function mapProject(row: ProjectRow): RadarProject {
   return {
     id: row.id,
@@ -479,7 +491,7 @@ function dateKeyInTimeZone(date: Date, timeZone: string) {
 export async function refreshDueProjects(options?: { profileId?: string; limit?: number; forceAll?: boolean }) {
   const supabase = getSupabaseAdmin();
   const timeZone = process.env.RADAR_DEFAULT_TIMEZONE?.trim() || "America/New_York";
-  const limit = Math.max(1, Math.min(8, Number(options?.limit ?? 3)));
+  const limit = Math.max(1, Math.min(250, Number(options?.limit ?? 100)));
   const todayKey = dateKeyInTimeZone(new Date(), timeZone);
 
   let query = supabase
@@ -505,22 +517,45 @@ export async function refreshDueProjects(options?: { profileId?: string; limit?:
   });
 
   const refreshed: string[] = [];
+  const refreshedProjects: RefreshedRadarProject[] = [];
+  const failedProjects: Array<{ projectId: string; name: string; reason: string }> = [];
   for (const project of dueProjects.slice(0, limit)) {
-    const research = await runRadarResearch({
-      name: project.name,
-      domain: project.domain,
-      productType: project.product_type,
-      notes: project.notes,
-      scanQuery: project.scan_query,
-      existingSummary: project.analysis_summary,
-      existingKeywords: project.detected_keywords ?? [],
-    });
-    await persistResearch(project, research);
-    refreshed.push(project.id);
+    try {
+      const research = await runRadarResearch({
+        name: project.name,
+        domain: project.domain,
+        productType: project.product_type,
+        notes: project.notes,
+        scanQuery: project.scan_query,
+        existingSummary: project.analysis_summary,
+        existingKeywords: project.detected_keywords ?? [],
+      });
+      await persistResearch(project, research);
+      refreshed.push(project.id);
+      refreshedProjects.push({
+        projectId: project.id,
+        profileId: project.profile_id,
+        name: project.name,
+        domain: project.domain,
+        analysisSummary: research.analysisSummary,
+        topSignalTitle: research.signals[0]?.title || null,
+        topSignalUrl: research.signals[0]?.url || null,
+        leadProposalHeadline: research.proposals[0]?.headline || null,
+        leadProposalX: research.proposals[0]?.content.x || null,
+      });
+    } catch (error) {
+      failedProjects.push({
+        projectId: project.id,
+        name: project.name,
+        reason: error instanceof Error ? error.message : "UNKNOWN",
+      });
+    }
   }
 
   return {
     refreshedCount: refreshed.length,
     refreshedProjectIds: refreshed,
+    refreshedProjects,
+    failedProjects,
   };
 }
