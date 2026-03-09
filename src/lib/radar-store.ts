@@ -462,19 +462,25 @@ function dateKeyInTimeZone(date: Date, timeZone: string) {
   }).format(date);
 }
 
-export async function refreshDueProjects(options?: { limit?: number; forceAll?: boolean }) {
+export async function refreshDueProjects(options?: { profileId?: string; limit?: number; forceAll?: boolean }) {
   const supabase = getSupabaseAdmin();
   const timeZone = process.env.RADAR_DEFAULT_TIMEZONE?.trim() || "America/New_York";
   const limit = Math.max(1, Math.min(8, Number(options?.limit ?? 3)));
   const todayKey = dateKeyInTimeZone(new Date(), timeZone);
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("radar_projects")
     .select("id,profile_id,slug,name,domain,repo_name,product_type,inventory_status,contact_email,notes,analysis_summary,detected_keywords,platform_handles,scan_query,active,auto_scan,last_scanned_at,last_proposal_at,created_at,updated_at")
     .eq("active", true)
     .eq("auto_scan", true)
     .order("last_scanned_at", { ascending: true, nullsFirst: true })
     .limit(50);
+
+  if (options?.profileId) {
+    query = query.eq("profile_id", options.profileId);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw new Error(`DUE_PROJECTS_QUERY_FAILED:${error.message}`);
   const rows = (data ?? []) as ProjectRow[];
@@ -504,4 +510,3 @@ export async function refreshDueProjects(options?: { limit?: number; forceAll?: 
     refreshedProjectIds: refreshed,
   };
 }
-

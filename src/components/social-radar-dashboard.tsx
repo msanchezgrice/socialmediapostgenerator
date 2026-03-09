@@ -255,15 +255,22 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
   }
 
   async function runCronNow() {
-    await runAction(
-      "cron",
-      async () => {
-        const secret = window.prompt("Enter the local cron secret from your .env.local to run the batch manually:");
-        if (!secret) throw new Error("Cron run cancelled.");
-        await requestJson(`/api/cron/social-radar?secret=${encodeURIComponent(secret)}`);
-      },
-      "Ran active project scan batch.",
-    );
+    setPendingAction("cron");
+    setStatus("");
+    try {
+      const data = await requestJson<{ refreshedCount: number }>("/api/social-radar/batch", {
+        method: "POST",
+      });
+      await reload();
+      const count = Number(data.refreshedCount ?? 0);
+      setStatus(count ? `Ran batch for ${count} active project${count === 1 ? "" : "s"}.` : "No active projects were due for scanning.");
+      setStatusError(false);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Action failed");
+      setStatusError(true);
+    } finally {
+      setPendingAction(null);
+    }
   }
 
   async function copyText(text: string) {
