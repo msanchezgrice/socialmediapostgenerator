@@ -14,12 +14,12 @@ export default async function DashboardPage() {
   const summary = await getRadarSummary(profile.id);
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(20,184,166,0.16),_transparent_24%),radial-gradient(circle_at_90%_10%,_rgba(245,158,11,0.12),_transparent_20%),linear-gradient(180deg,_#07111b_0%,_#03060b_100%)] px-4 py-4 text-white md:px-8 md:py-6">
-      <div className="mx-auto max-w-7xl">
-        <header className="flex flex-col gap-4 rounded-[32px] border border-white/10 bg-black/25 px-6 py-5 backdrop-blur md:flex-row md:items-center md:justify-between">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(20,184,166,0.16),_transparent_24%),radial-gradient(circle_at_90%_10%,_rgba(245,158,11,0.12),_transparent_20%),linear-gradient(180deg,_#07111b_0%,_#03060b_100%)] px-4 py-4 text-white md:px-6 md:py-5">
+      <div className="mx-auto max-w-[1560px]">
+        <header className="flex flex-col gap-4 rounded-[32px] border border-white/10 bg-black/25 px-5 py-4 backdrop-blur md:flex-row md:items-center md:justify-between md:px-6">
           <div>
             <div className="text-[11px] uppercase tracking-[0.25em] text-[#5eead4]">Social Radar</div>
-            <h1 className="mt-2 font-[Georgia] text-3xl tracking-tight text-white md:text-4xl">Daily signal scans for your portfolio companies</h1>
+            <h1 className="mt-2 font-[Georgia] text-3xl tracking-tight text-white md:text-[2.5rem]">Daily signal scans for your portfolio companies</h1>
             <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-300">
               Manage company domains, emails, and handles in an isolated app. Every active project gets fresh signals and
               three ready-to-post options.

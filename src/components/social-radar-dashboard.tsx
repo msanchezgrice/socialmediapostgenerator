@@ -158,6 +158,7 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
   const [selectedProjectId, setSelectedProjectId] = useState(initialSummary.projects[0]?.id ?? "");
   const [editor, setEditor] = useState<EditorState>(editorFromProject(initialSummary.projects[0] ?? null));
   const [xHandleSuggestions, setXHandleSuggestions] = useState<Record<string, XHandleSuggestionState>>({});
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [bulkInput, setBulkInput] = useState("");
   const [status, setStatus] = useState("Dashboard ready.");
   const [statusError, setStatusError] = useState(false);
@@ -337,88 +338,95 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
   }
 
   return (
-    <div className="space-y-6">
-      <section className="grid gap-4 xl:grid-cols-[1.1fr,0.9fr]">
-        <div className="rounded-[30px] border border-white/10 bg-black/25 p-5 backdrop-blur">
-          <div className="flex items-start justify-between gap-4">
+    <div className="grid gap-5 xl:grid-cols-[320px,minmax(0,1fr)] xl:items-start">
+      <aside className="space-y-4 xl:sticky xl:top-4 xl:h-[calc(100vh-8.5rem)]">
+        <section className="rounded-[28px] border border-white/10 bg-black/30 p-4 backdrop-blur">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-[11px] uppercase tracking-[0.22em] text-[#5eead4]">Quick intake</div>
-              <h2 className="mt-2 text-2xl font-semibold text-white">Bulk add domains</h2>
-              <p className="mt-1 text-sm text-slate-400">One line per project. Add optional notes and contact email.</p>
+              <div className="text-[11px] uppercase tracking-[0.22em] text-[#5eead4]">Workspace</div>
+              <h2 className="mt-2 text-xl font-semibold text-white">Portfolio console</h2>
+              <p className="mt-1 text-xs leading-6 text-slate-400">Compact intake on the left. Full company workspace on the right.</p>
             </div>
             <button
               type="button"
-              onClick={() => void addProjects()}
-              disabled={Boolean(pendingAction)}
-              className="rounded-full bg-[#14b8a6] px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-[#2dd4bf] disabled:opacity-60"
+              onClick={() => setShowQuickAdd((value) => !value)}
+              className="rounded-full border border-white/15 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-slate-200 transition hover:bg-white/10"
             >
-              Add
+              {showQuickAdd ? "Hide add" : "Add"}
             </button>
           </div>
-          <textarea
-            value={bulkInput}
-            onChange={(event) => setBulkInput(event.target.value)}
-            placeholder={"LidVault | lidvault.com | HIPAA ophthalmology | ops@lidvault.com\nsurgeryviz.com"}
-            className="mt-4 min-h-[160px] w-full rounded-[24px] border border-white/10 bg-[#07121b] px-4 py-4 text-sm text-white outline-none placeholder:text-slate-500"
-          />
-        </div>
 
-        <div className="rounded-[30px] border border-white/10 bg-black/25 p-5 backdrop-blur">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.22em] text-amber-300">Portfolio import</div>
-              <h2 className="mt-2 text-2xl font-semibold text-white">Reboot seed</h2>
-              <p className="mt-1 text-sm text-slate-400">Import the landing pages and live projects into this isolated app.</p>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Tracked</div>
+              <div className="mt-1 text-lg font-semibold text-white">{summary.importedProjectCount}</div>
             </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => void runCronNow()}
-                disabled={Boolean(pendingAction)}
-                className="rounded-full border border-white/15 px-4 py-2 text-sm text-white transition hover:bg-white/10 disabled:opacity-60"
-              >
-                Run Batch
-              </button>
-              <button
-                type="button"
-                onClick={() => void importReboot()}
-                disabled={Boolean(pendingAction)}
-                className="rounded-full border border-[#14b8a6]/25 bg-[#14b8a6]/10 px-4 py-2 text-sm text-[#5eead4] transition hover:bg-[#14b8a6]/20 disabled:opacity-60"
-              >
-                Import
-              </button>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Active</div>
+              <div className="mt-1 text-lg font-semibold text-white">{summary.activeProjectCount}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Last scan</div>
+              <div className="mt-1 text-xs font-medium leading-5 text-white">{formatDate(summary.lastScannedAt)}</div>
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-3 gap-3">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Tracked</div>
-              <div className="mt-2 text-2xl font-semibold text-white">{summary.importedProjectCount}</div>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Active</div>
-              <div className="mt-2 text-2xl font-semibold text-white">{summary.activeProjectCount}</div>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Last scan</div>
-              <div className="mt-2 text-sm font-medium text-white">{formatDate(summary.lastScannedAt)}</div>
-            </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void runCronNow()}
+              disabled={Boolean(pendingAction)}
+              className="rounded-full border border-white/15 px-3 py-2 text-xs text-white transition hover:bg-white/10 disabled:opacity-60"
+            >
+              Run Batch
+            </button>
+            <button
+              type="button"
+              onClick={() => void importReboot()}
+              disabled={Boolean(pendingAction)}
+              className="rounded-full border border-[#14b8a6]/25 bg-[#14b8a6]/10 px-3 py-2 text-xs text-[#5eead4] transition hover:bg-[#14b8a6]/20 disabled:opacity-60"
+            >
+              Import Reboot
+            </button>
           </div>
+
+          {showQuickAdd ? (
+            <div className="mt-4 rounded-[22px] border border-white/10 bg-[#07121b] p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-[#5eead4]">Quick intake</div>
+                  <p className="mt-1 text-xs leading-6 text-slate-400">One line per project. `Name | domain.com | notes | email`.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void addProjects()}
+                  disabled={Boolean(pendingAction)}
+                  className="rounded-full bg-[#14b8a6] px-3 py-1.5 text-xs font-medium text-slate-950 transition hover:bg-[#2dd4bf] disabled:opacity-60"
+                >
+                  Add
+                </button>
+              </div>
+              <textarea
+                value={bulkInput}
+                onChange={(event) => setBulkInput(event.target.value)}
+                placeholder={"LidVault | lidvault.com | HIPAA ophthalmology | ops@lidvault.com\nsurgeryviz.com"}
+                className="mt-3 min-h-[132px] w-full rounded-[18px] border border-white/10 bg-black/20 px-3 py-3 text-sm text-white outline-none placeholder:text-slate-500"
+              />
+            </div>
+          ) : null}
 
           <div className={`mt-4 min-h-5 text-xs ${statusError ? "text-rose-300" : "text-emerald-300"}`}>{status}</div>
-        </div>
-      </section>
+        </section>
 
-      <div className="grid gap-6 xl:grid-cols-[340px,1fr]">
-        <section className="rounded-[30px] border border-white/10 bg-black/25 p-4 backdrop-blur">
-          <div className="flex items-center justify-between border-b border-white/5 pb-4">
+        <section className="rounded-[28px] border border-white/10 bg-black/25 p-3 backdrop-blur xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
+          <div className="flex items-center justify-between border-b border-white/5 px-2 pb-3">
             <div>
-              <h3 className="text-lg font-semibold text-white">Projects</h3>
-              <p className="text-xs text-slate-400">Toggle and edit each company independently.</p>
+              <h3 className="text-base font-semibold text-white">Companies</h3>
+              <p className="text-[11px] text-slate-400">Choose one and work it on the right.</p>
             </div>
-            <div className="text-xs text-slate-500">{summary.projects.length} total</div>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{summary.projects.length}</div>
           </div>
-          <div className="mt-4 space-y-3">
+          <div className="mt-3 space-y-2 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
             {summary.projects.length ? (
               summary.projects.map((project) => (
                 <button
@@ -426,27 +434,27 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
                   type="button"
                   onClick={() => setSelectedProjectId(project.id)}
                   className={
-                    "w-full rounded-[22px] border p-4 text-left transition " +
+                    "w-full rounded-[20px] border px-3 py-3 text-left transition " +
                     (selectedProject?.id === project.id
-                      ? "border-[#14b8a6]/35 bg-[#0a1721]"
+                      ? "border-[#14b8a6]/35 bg-[#0a1721] shadow-[inset_0_1px_0_rgba(94,234,212,0.08)]"
                       : "border-white/10 bg-white/[0.03] hover:border-white/20")
                   }
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate font-medium text-white">{project.name}</div>
-                      <div className="mt-1 truncate text-xs text-slate-400">{project.domain || "No domain yet"}</div>
+                      <div className="truncate text-sm font-medium text-white">{project.name}</div>
+                      <div className="mt-1 truncate text-[11px] text-slate-400">{project.domain || "No domain yet"}</div>
                     </div>
-                    <span className={`rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] ${project.active ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-600/35 text-slate-400"}`}>
-                      {project.active ? "Active" : "Paused"}
+                    <span className={`rounded-full px-2 py-1 text-[9px] uppercase tracking-[0.16em] ${project.active ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-600/35 text-slate-400"}`}>
+                      {project.active ? "On" : "Off"}
                     </span>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-2 flex flex-wrap gap-1.5">
                     {project.productType ? (
-                      <span className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-slate-300">{project.productType}</span>
+                      <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] text-slate-300">{project.productType}</span>
                     ) : null}
                     {project.detectedKeywords.slice(0, 2).map((keyword) => (
-                      <span key={keyword} className="rounded-full border border-[#14b8a6]/20 px-2 py-1 text-[11px] text-[#5eead4]">
+                      <span key={keyword} className="rounded-full border border-[#14b8a6]/20 px-2 py-1 text-[10px] text-[#5eead4]">
                         {keyword}
                       </span>
                     ))}
@@ -454,21 +462,31 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
                 </button>
               ))
             ) : (
-              <div className="rounded-[22px] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-slate-400">
+              <div className="rounded-[20px] border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-slate-400">
                 Import the Reboot seed or add domains manually to start the isolated company list.
               </div>
             )}
           </div>
         </section>
+      </aside>
 
-        <div className="space-y-6">
-          <section className="rounded-[30px] border border-white/10 bg-black/25 p-5 backdrop-blur">
+      <div className="space-y-5 xl:min-h-[calc(100vh-8.5rem)]">
+        <section className="rounded-[32px] border border-white/10 bg-black/25 p-5 backdrop-blur xl:min-h-[calc(100vh-8.5rem)] xl:overflow-y-auto">
+          <div className="space-y-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <h3 className="text-2xl font-semibold text-white">{selectedProject ? selectedProject.name : "Select a project"}</h3>
-                <p className="mt-1 text-sm text-slate-400">
+                <div className="text-[11px] uppercase tracking-[0.22em] text-[#5eead4]">Company workspace</div>
+                <h3 className="mt-2 text-3xl font-semibold text-white">{selectedProject ? selectedProject.name : "Select a project"}</h3>
+                <p className="mt-1 max-w-3xl text-sm text-slate-400">
                   {selectedProject ? "Store company metadata, email, handles, and scanning settings." : "Choose a project to edit settings and review signals."}
                 </p>
+                {selectedProject ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {selectedProject.domain ? <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-slate-300">{selectedProject.domain}</span> : null}
+                    {selectedProject.productType ? <span className="rounded-full border border-[#14b8a6]/20 px-3 py-1 text-[11px] text-[#5eead4]">{selectedProject.productType}</span> : null}
+                    <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-slate-300">Last scan {formatDate(selectedProject.lastScannedAt)}</span>
+                  </div>
+                ) : null}
               </div>
               {selectedProject ? (
                 <div className="flex gap-2">
@@ -493,7 +511,7 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
             </div>
 
             {selectedProject ? (
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2">
                 <label className="space-y-2">
                   <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Company name</span>
                   <input value={editor.name} onChange={(e) => setEditor((s) => ({ ...s, name: e.target.value }))} className="w-full rounded-[18px] border border-white/10 bg-[#07121b] px-4 py-3 text-sm text-white outline-none" />
@@ -608,17 +626,16 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
             ) : null}
 
             {selectedProject?.analysisSummary ? (
-              <div className="mt-5 rounded-[24px] border border-[#14b8a6]/20 bg-[#07121b] p-4 text-sm leading-7 text-slate-300">
+              <div className="rounded-[24px] border border-[#14b8a6]/20 bg-[#07121b] p-4 text-sm leading-7 text-slate-300">
                 <div className="mb-2 text-[11px] uppercase tracking-[0.18em] text-[#5eead4]">Latest analysis</div>
                 {selectedProject.analysisSummary}
               </div>
             ) : null}
-          </section>
 
-          <section className="rounded-[30px] border border-white/10 bg-black/25 p-5 backdrop-blur">
-            <h3 className="text-2xl font-semibold text-white">Signals</h3>
-            <p className="mt-1 text-sm text-slate-400">Homepage and news inputs that shaped the latest proposal set.</p>
-            <div className="mt-5 space-y-3">
+            <section className="rounded-[28px] border border-white/10 bg-[#050b12]/70 p-4">
+              <h3 className="text-2xl font-semibold text-white">Signals</h3>
+              <p className="mt-1 text-sm text-slate-400">Homepage and live-web inputs shaping the current narrative.</p>
+              <div className="mt-5 space-y-3">
               {selectedProject?.latestSignals.length ? (
                 selectedProject.latestSignals.map((signal) => (
                   <article key={signal.id} className="rounded-[24px] border border-white/10 bg-[#07121b] p-4">
@@ -639,17 +656,17 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
                   </article>
                 ))
               ) : (
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-slate-400">
-                  Run a refresh to populate this company’s signals.
-                </div>
-              )}
-            </div>
-          </section>
+                  <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-slate-400">
+                    Run a refresh to populate this company’s signals.
+                  </div>
+                )}
+              </div>
+            </section>
 
-          <section className="rounded-[30px] border border-white/10 bg-black/25 p-5 backdrop-blur">
-            <h3 className="text-2xl font-semibold text-white">Packaged posts</h3>
-            <p className="mt-1 text-sm text-slate-400">Three options, each ready for native LinkedIn or X posting.</p>
-            <div className="mt-5 grid gap-4 xl:grid-cols-3">
+            <section className="rounded-[28px] border border-white/10 bg-[#050b12]/70 p-4">
+              <h3 className="text-2xl font-semibold text-white">Packaged posts</h3>
+              <p className="mt-1 text-sm text-slate-400">Three options, each ready for native LinkedIn or X posting.</p>
+              <div className="mt-5 grid gap-4 xl:grid-cols-3">
               {selectedProject?.latestProposals.length ? (
                 selectedProject.latestProposals.map((proposal) => (
                   <article key={proposal.id} className="rounded-[24px] border border-white/10 bg-[#07121b] p-4">
@@ -694,13 +711,14 @@ export function SocialRadarDashboard({ initialSummary }: { initialSummary: Radar
                   </article>
                 ))
               ) : (
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-slate-400 xl:col-span-3">
-                  Refresh a project to generate the first proposal set.
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
+                  <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-slate-400 xl:col-span-3">
+                    Refresh a project to generate the first proposal set.
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+        </section>
       </div>
     </div>
   );
