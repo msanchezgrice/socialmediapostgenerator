@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { SignInButton, UserButton } from "@clerk/nextjs";
-import { getAuthUserSeed } from "@/lib/auth";
+import { Show, SignInButton, SignUpButton } from "@clerk/nextjs";
 
 const features = [
   "Import the Reboot portfolio or add domains manually",
@@ -10,9 +9,6 @@ const features = [
 ];
 
 export default async function Home() {
-  const seed = await getAuthUserSeed();
-  const signedIn = Boolean(seed);
-
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(20,184,166,0.16),_transparent_28%),radial-gradient(circle_at_80%_20%,_rgba(245,158,11,0.12),_transparent_24%),linear-gradient(180deg,_#08111b_0%,_#04070d_100%)] text-white">
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-8 md:px-10">
@@ -21,23 +17,6 @@ export default async function Home() {
             <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[#14b8a6]/40 bg-[#0a1721] text-lg">⌁</span>
             Social Radar
           </Link>
-          <div className="flex items-center gap-3">
-            {!signedIn ? (
-              <SignInButton mode="modal">
-                <button className="rounded-full border border-white/15 px-4 py-2 text-sm text-white transition hover:bg-white/10">
-                  Sign In
-                </button>
-              </SignInButton>
-            ) : null}
-            {signedIn ? (
-              <>
-                <Link href="/dashboard" className="rounded-full bg-[#14b8a6] px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-[#2dd4bf]">
-                  Open Dashboard
-                </Link>
-                <UserButton />
-              </>
-            ) : null}
-          </div>
         </header>
 
         <section className="grid flex-1 items-center gap-12 py-16 lg:grid-cols-[1.05fr,0.95fr]">
@@ -55,18 +34,23 @@ export default async function Home() {
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
-              {!signedIn ? (
-                <SignInButton mode="modal">
+              <Show when="signed-out">
+                <SignUpButton>
                   <button className="rounded-full bg-[#14b8a6] px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-[#2dd4bf]">
-                    Start with Clerk
+                    Create First User
+                  </button>
+                </SignUpButton>
+                <SignInButton>
+                  <button className="rounded-full border border-white/15 px-5 py-3 text-sm text-white transition hover:bg-white/10">
+                    Sign In
                   </button>
                 </SignInButton>
-              ) : null}
-              {signedIn ? (
+              </Show>
+              <Show when="signed-in">
                 <Link href="/dashboard" className="rounded-full bg-[#14b8a6] px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-[#2dd4bf]">
                   Go to Dashboard
                 </Link>
-              ) : null}
+              </Show>
               <a
                 href="https://github.com/msanchezgrice/socialmediapostgenerator"
                 target="_blank"
