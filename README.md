@@ -34,10 +34,12 @@ Copy `.env.example` to `.env.local` and fill in:
 - `RADAR_FROM_EMAIL`
 - `RADAR_APP_URL`
 - `SOCIAL_RADAR_CRON_SECRET`
+- `CRON_SECRET` for Vercel Cron's `Authorization: Bearer` header. The legacy `x-cron-secret` header remains supported through `SOCIAL_RADAR_CRON_SECRET`; URL query authentication is not supported.
 
 ## Commands
 - `pnpm dev`
 - `pnpm lint`
+- `pnpm test`
 - `pnpm typecheck`
 - `pnpm build`
 

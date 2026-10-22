@@ -15,7 +15,11 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
     return jsonOk({ research });
   } catch (error) {
     const reason = error instanceof Error ? error.message : "UNKNOWN";
-    const status = reason === "PROJECT_NOT_FOUND" ? 404 : 500;
+    const status = reason === "PROJECT_NOT_FOUND" || reason === "SCAN_ADMISSION_NOT_FOUND"
+      ? 404
+      : /^SCAN_ADMISSION_(DUPLICATE|DAILY_LIMIT|MONTHLY_LIMIT)$/.test(reason)
+        ? 429
+        : 500;
     return jsonError("REFRESH_FAILED", "Unable to refresh project", status, { reason });
   }
 }

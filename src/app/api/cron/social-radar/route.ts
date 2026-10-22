@@ -1,14 +1,12 @@
 import { jsonError, jsonOk } from "@/lib/http";
 import { sendRadarDigestEmails } from "@/lib/radar-digest";
 import { refreshDueProjects } from "@/lib/radar-store";
+import { authorizeSocialRadarCron } from "@/lib/social-radar-cron-auth.mjs";
 
 export const maxDuration = 800;
 
 export async function GET(req: Request) {
-  const secret = process.env.SOCIAL_RADAR_CRON_SECRET?.trim();
-  const provided = req.headers.get("x-cron-secret")?.trim() || new URL(req.url).searchParams.get("secret") || "";
-
-  if (!secret || provided !== secret) {
+  if (!authorizeSocialRadarCron(req)) {
     return jsonError("FORBIDDEN", "Invalid cron secret", 403);
   }
 

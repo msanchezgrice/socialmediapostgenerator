@@ -103,6 +103,14 @@ const STOPWORDS = new Set([
   "your",
 ]);
 
+const MAX_PROMPT_FIELD_CHARS = 1_000;
+const MAX_WEB_OUTPUT_TOKENS = 1_600;
+const MAX_PROPOSAL_OUTPUT_TOKENS = 1_800;
+
+function boundedPromptText(value: string | null | undefined, maxChars = MAX_PROMPT_FIELD_CHARS) {
+  return trimText(String(value ?? "").trim(), maxChars);
+}
+
 function unique<T>(values: T[]) {
   return Array.from(new Set(values));
 }
@@ -323,10 +331,10 @@ function buildNewsQueries(project: RadarProjectContext, keywords: string[]) {
   const domainLabel = normalizeDomain(project.domain)?.split(".")[0] ?? "";
   const base = unique(
     [
-      project.scanQuery?.trim() || "",
-      [project.name, project.productType].filter(Boolean).join(" "),
-      [domainLabel, project.productType].filter(Boolean).join(" "),
-      keywords.slice(0, 3).join(" "),
+      boundedPromptText(project.scanQuery, 180),
+      boundedPromptText([project.name, project.productType].filter(Boolean).join(" "), 180),
+      boundedPromptText([domainLabel, project.productType].filter(Boolean).join(" "), 180),
+      boundedPromptText(keywords.slice(0, 3).join(" "), 180),
     ]
       .map((entry) => entry.trim())
       .filter(Boolean),
@@ -340,7 +348,7 @@ async function fetchWebSearchSignals(project: RadarProjectContext, queries: stri
   if (!apiKey) return null;
 
   const prompt = [
-    `You are preparing a daily market scan for "${project.name}".`,
+    `You are preparing a daily market scan for "${boundedPromptText(project.name, 120)}".`,
     "Search the live web and return JSON only.",
     'JSON shape: {"analysisSummary":"string","keywords":["string"],"queries":["string"],"signals":[{"title":"string","url":"string|null","summary":"string","publishedAt":"ISO-8601 string|null","relevanceScore":0}]}',
     "Rules:",
@@ -349,13 +357,13 @@ async function fetchWebSearchSignals(project: RadarProjectContext, queries: stri
     "- Return 3 to 5 signals.",
     "- Each summary should explain why the item matters for social posting or positioning.",
     "- Keep relevanceScore between 1 and 99.",
-    `Company: ${project.name}`,
-    `Domain: ${project.domain || "unknown"}`,
-    `Product type: ${project.productType || "unknown"}`,
-    `Notes: ${project.notes || "none"}`,
-    `Existing summary: ${project.existingSummary || "none"}`,
-    `Known keywords: ${keywords.join(", ") || "none"}`,
-    `Query hints: ${queries.join(" | ") || project.name}`,
+    `Company: ${boundedPromptText(project.name, 120)}`,
+    `Domain: ${boundedPromptText(project.domain, 240) || "unknown"}`,
+    `Product type: ${boundedPromptText(project.productType, 120) || "unknown"}`,
+    `Notes: ${boundedPromptText(project.notes) || "none"}`,
+    `Existing summary: ${boundedPromptText(project.existingSummary, 500) || "none"}`,
+    `Known keywords: ${boundedPromptText(keywords.join(", "), 500) || "none"}`,
+    `Query hints: ${boundedPromptText(queries.join(" | "), 600) || boundedPromptText(project.name, 120)}`,
   ].join("\n");
 
   try {
@@ -368,6 +376,8 @@ async function fetchWebSearchSignals(project: RadarProjectContext, queries: stri
       body: JSON.stringify({
         model: process.env.OPENAI_WEB_SEARCH_MODEL?.trim() || process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini",
         input: prompt,
+        max_output_tokens: MAX_WEB_OUTPUT_TOKENS,
+        max_tool_calls: 1,
         tools: [
           {
             type: "web_search",
@@ -614,7 +624,7 @@ async function maybeGenerateWithOpenAi(input: {
   if (!apiKey) return null;
 
   const prompt = [
-    `You are generating daily social content proposals for the project "${input.project.name}".`,
+    `You are generating daily social content proposals for the project "${boundedPromptText(input.project.name, 120)}".`,
     "Return JSON only.",
     'JSON shape: {"analysisSummary":"string","keywords":["string"],"proposals":[{"variantIndex":1,"headline":"string","rationale":"string","linkedin":"string","x":"string","crosspost":"string"}]}',
     "Generate exactly 3 proposals.",
@@ -623,13 +633,13 @@ async function maybeGenerateWithOpenAi(input: {
     "- X should be in first person singular and under 280 characters.",
     "- crosspost should work for Threads, Bluesky, or short-form reuse.",
     "- Keep the writing specific to the project and the supplied signals.",
-    `Project type: ${input.project.productType || "unknown"}`,
-    `Project notes: ${input.project.notes || "none"}`,
-    `Current summary: ${input.analysisSummary}`,
-    `Current keywords: ${input.keywords.join(", ") || "none"}`,
+    `Project type: ${boundedPromptText(input.project.productType, 120) || "unknown"}`,
+    `Project notes: ${boundedPromptText(input.project.notes) || "none"}`,
+    `Current summary: ${boundedPromptText(input.analysisSummary, 500)}`,
+    `Current keywords: ${boundedPromptText(input.keywords.join(", "), 500) || "none"}`,
     `Signals: ${input.signals
       .slice(0, 5)
-      .map((signal) => `- ${signal.title} | ${signal.summary}`)
+      .map((signal) => `- ${boundedPromptText(signal.title, 180)} | ${boundedPromptText(signal.summary, 280)}`)
       .join("\n") || "none"}`,
   ].join("\n");
 
@@ -643,6 +653,7 @@ async function maybeGenerateWithOpenAi(input: {
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
         input: prompt,
+        max_output_tokens: MAX_PROPOSAL_OUTPUT_TOKENS,
         temperature: 0.6,
       }),
     });
