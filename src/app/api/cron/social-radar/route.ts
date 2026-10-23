@@ -11,8 +11,8 @@ export async function GET(req: Request) {
   }
 
   try {
-    const result = await refreshDueProjects({ limit: 250 });
-    const digest = await sendRadarDigestEmails(result.refreshedProjects);
+    const result = await refreshDueProjects({ limit: 250, includeCachedInDigest: true });
+    const digest = await sendRadarDigestEmails(result.digestProjects);
     return jsonOk({ ...result, digest });
   } catch (error) {
     return jsonError("CRON_FAILED", "Unable to run Social Radar cron", 500, {

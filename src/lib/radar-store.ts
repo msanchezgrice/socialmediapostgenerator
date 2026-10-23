@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isOwnedRadarProject } from "@/lib/radar-access.mjs";
 import { runReservedRadarScan } from "@/lib/radar-scan-admission.mjs";
+import { cachedProjectsForDailyDigest, isDailyRadarScanDue } from "@/lib/radar-scan-schedule.mjs";
 import { getRebootSeedProjects, rebootInventoryAvailable } from "@/lib/reboot-seed";
 import { runRadarResearch, normalizeDomain, slugify, type RadarProposalDraft, type RadarResearchResult, type RadarSignalCandidate } from "@/lib/radar-research";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
@@ -511,20 +512,17 @@ export async function refreshProject(profileId: string, projectId: string) {
   return reserveResearchAndPersist(project);
 }
 
-function dateKeyInTimeZone(date: Date, timeZone: string) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
-}
-
-export async function refreshDueProjects(options?: { profileId?: string; limit?: number; forceAll?: boolean }) {
+export async function refreshDueProjects(options?: {
+  profileId?: string;
+  limit?: number;
+  forceAll?: boolean;
+  includeCachedInDigest?: boolean;
+}) {
   const supabase = getSupabaseAdmin();
-  const timeZone = process.env.RADAR_DEFAULT_TIMEZONE?.trim() || "America/New_York";
   const limit = Math.max(1, Math.min(250, Number(options?.limit ?? 100)));
-  const todayKey = dateKeyInTimeZone(new Date(), timeZone);
+  // The reservation ledger and its daily cap roll over at UTC midnight.
+  // Use the same boundary here so an evening manual scan is not retried by
+  // the next morning's cron merely because the local calendar date changed.
 
   let query = supabase
     .from("radar_projects")
@@ -542,10 +540,13 @@ export async function refreshDueProjects(options?: { profileId?: string; limit?:
 
   if (error) throw new Error(`DUE_PROJECTS_QUERY_FAILED:${error.message}`);
   const rows = (data ?? []) as ProjectRow[];
+  const now = new Date();
+  const cachedDigestProjects = options?.includeCachedInDigest
+    ? cachedProjectsForDailyDigest(rows, now)
+    : [];
   const dueProjects = rows.filter((project) => {
     if (options?.forceAll) return true;
-    if (!project.last_scanned_at) return true;
-    return dateKeyInTimeZone(new Date(project.last_scanned_at), timeZone) !== todayKey;
+    return isDailyRadarScanDue(project.last_scanned_at, now);
   });
 
   const refreshed: string[] = [];
@@ -581,6 +582,7 @@ export async function refreshDueProjects(options?: { profileId?: string; limit?:
     refreshedCount: refreshed.length,
     refreshedProjectIds: refreshed,
     refreshedProjects,
+    digestProjects: [...refreshedProjects, ...cachedDigestProjects],
     failedProjects,
   };
 }
