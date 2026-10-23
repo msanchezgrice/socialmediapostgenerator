@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { isOwnedRadarProject } from "@/lib/radar-access.mjs";
+import { runReservedRadarScan } from "@/lib/radar-scan-admission.mjs";
+import { cachedProjectsForDailyDigest, isDailyRadarScanDue } from "@/lib/radar-scan-schedule.mjs";
 import { getRebootSeedProjects, rebootInventoryAvailable } from "@/lib/reboot-seed";
 import { runRadarResearch, normalizeDomain, slugify, type RadarProposalDraft, type RadarResearchResult, type RadarSignalCandidate } from "@/lib/radar-research";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
@@ -339,7 +342,7 @@ async function getOwnedProject(profileId: string, projectId: string) {
     .maybeSingle();
 
   if (error) throw new Error(`PROJECT_FETCH_FAILED:${error.message}`);
-  return (data as ProjectRow | null) ?? null;
+  return isOwnedRadarProject(data, profileId, projectId) ? (data as ProjectRow) : null;
 }
 
 export async function getProjectXHandleSuggestions(profileId: string, projectId: string) {
@@ -461,38 +464,65 @@ async function persistResearch(project: ProjectRow, research: RadarResearchResul
   }
 }
 
+async function reserveResearchAndPersist(project: ProjectRow) {
+  const result = await runReservedRadarScan({
+    reserve: async () => {
+      const { data, error } = await getSupabaseAdmin().rpc("reserve_social_radar_scan", {
+        p_profile_id: project.profile_id,
+        p_project_id: project.id,
+      });
+      if (error) throw new Error("SCAN_ADMISSION_UNAVAILABLE");
+      const row = data as { status?: string; reservation_id?: string } | null;
+      return { status: row?.status ?? "unavailable", reservationId: row?.reservation_id };
+    },
+    execute: async () => {
+      const research = await runRadarResearch({
+        name: project.name,
+        domain: project.domain,
+        productType: project.product_type,
+        notes: project.notes,
+        scanQuery: project.scan_query,
+        existingSummary: project.analysis_summary,
+        existingKeywords: project.detected_keywords ?? [],
+      });
+      await persistResearch(project, research);
+      return research;
+    },
+    settle: async (reservationId, status) => {
+      const { data, error } = await getSupabaseAdmin().rpc("settle_social_radar_scan", {
+        p_reservation_id: reservationId,
+        p_status: status,
+      });
+      if (error) throw new Error("SCAN_SETTLEMENT_UNAVAILABLE");
+      const row = data as { status?: string } | null;
+      if (row?.status === "not_found") throw new Error("SCAN_RESERVATION_NOT_FOUND");
+    },
+  });
+
+  if (!result.admitted) {
+    const status = String(result.status || "unavailable").toUpperCase();
+    throw new Error(`SCAN_ADMISSION_${status}`);
+  }
+  return result.value as RadarResearchResult;
+}
+
 export async function refreshProject(profileId: string, projectId: string) {
   const project = await getOwnedProject(profileId, projectId);
   if (!project) throw new Error("PROJECT_NOT_FOUND");
-
-  const research = await runRadarResearch({
-    name: project.name,
-    domain: project.domain,
-    productType: project.product_type,
-    notes: project.notes,
-    scanQuery: project.scan_query,
-    existingSummary: project.analysis_summary,
-    existingKeywords: project.detected_keywords ?? [],
-  });
-
-  await persistResearch(project, research);
-  return research;
+  return reserveResearchAndPersist(project);
 }
 
-function dateKeyInTimeZone(date: Date, timeZone: string) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
-}
-
-export async function refreshDueProjects(options?: { profileId?: string; limit?: number; forceAll?: boolean }) {
+export async function refreshDueProjects(options?: {
+  profileId?: string;
+  limit?: number;
+  forceAll?: boolean;
+  includeCachedInDigest?: boolean;
+}) {
   const supabase = getSupabaseAdmin();
-  const timeZone = process.env.RADAR_DEFAULT_TIMEZONE?.trim() || "America/New_York";
   const limit = Math.max(1, Math.min(250, Number(options?.limit ?? 100)));
-  const todayKey = dateKeyInTimeZone(new Date(), timeZone);
+  // The reservation ledger and its daily cap roll over at UTC midnight.
+  // Use the same boundary here so an evening manual scan is not retried by
+  // the next morning's cron merely because the local calendar date changed.
 
   let query = supabase
     .from("radar_projects")
@@ -510,10 +540,13 @@ export async function refreshDueProjects(options?: { profileId?: string; limit?:
 
   if (error) throw new Error(`DUE_PROJECTS_QUERY_FAILED:${error.message}`);
   const rows = (data ?? []) as ProjectRow[];
+  const now = new Date();
+  const cachedDigestProjects = options?.includeCachedInDigest
+    ? cachedProjectsForDailyDigest(rows, now)
+    : [];
   const dueProjects = rows.filter((project) => {
     if (options?.forceAll) return true;
-    if (!project.last_scanned_at) return true;
-    return dateKeyInTimeZone(new Date(project.last_scanned_at), timeZone) !== todayKey;
+    return isDailyRadarScanDue(project.last_scanned_at, now);
   });
 
   const refreshed: string[] = [];
@@ -521,16 +554,7 @@ export async function refreshDueProjects(options?: { profileId?: string; limit?:
   const failedProjects: Array<{ projectId: string; name: string; reason: string }> = [];
   for (const project of dueProjects.slice(0, limit)) {
     try {
-      const research = await runRadarResearch({
-        name: project.name,
-        domain: project.domain,
-        productType: project.product_type,
-        notes: project.notes,
-        scanQuery: project.scan_query,
-        existingSummary: project.analysis_summary,
-        existingKeywords: project.detected_keywords ?? [],
-      });
-      await persistResearch(project, research);
+      const research = await reserveResearchAndPersist(project);
       refreshed.push(project.id);
       refreshedProjects.push({
         projectId: project.id,
@@ -547,7 +571,9 @@ export async function refreshDueProjects(options?: { profileId?: string; limit?:
       failedProjects.push({
         projectId: project.id,
         name: project.name,
-        reason: error instanceof Error ? error.message : "UNKNOWN",
+        reason: error instanceof Error && /^SCAN_(ADMISSION|SETTLEMENT|RESERVATION)_/.test(error.message)
+          ? error.message
+          : "SCAN_FAILED",
       });
     }
   }
@@ -556,6 +582,7 @@ export async function refreshDueProjects(options?: { profileId?: string; limit?:
     refreshedCount: refreshed.length,
     refreshedProjectIds: refreshed,
     refreshedProjects,
+    digestProjects: [...refreshedProjects, ...cachedDigestProjects],
     failedProjects,
   };
 }
